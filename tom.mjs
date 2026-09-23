@@ -183,7 +183,9 @@ async function main() {
       const o = common(a);
       const p = melodyFromTag(o.seed); // the tag's own recipe; flags below override it
       const flag = (k, v) => { if (v !== undefined && v !== true) p[k] = v; };
-      flag('style', o.style); flag('key', o.key); flag('mode', o.mode); flag('bpm', o.bpm);
+      // Choosing a style brings its key, mode and tempo — like tapping a style in the web app.
+      if (o.style && o.style !== p.style) { const st = STYLES[o.style]; Object.assign(p, { style: o.style, key: st.key, mode: st.mode, bpm: Math.round(st.bpm), progression: '' }); }
+      flag('key', o.key); flag('mode', o.mode); flag('bpm', o.bpm);
       flag('bars', a.bars !== undefined ? num(a.bars) : undefined);
       flag('density', a.density !== undefined ? num(a.density) : undefined);
       flag('syncopation', a.syncopation !== undefined ? num(a.syncopation) : undefined);

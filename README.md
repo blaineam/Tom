@@ -31,7 +31,7 @@ Press **🎲 New melody** and you get one. Then dial it in:
 
 | Dial | What it does |
 |---|---|
-| **Style** | Synthwave, Bright Pop, Chiptune, Lo-fi, Marimba |
+| **Style** | Synthwave, Bright Pop, Chiptune, Lo-fi, Marimba, Jazz, Orchestral |
 | **Key · Mode · Tempo** | Any key; major, minor, dorian, mixolydian, pentatonic |
 | **Bars** | 4, 8 or 16 |
 | **Busy-ness** | Sparse and singable ↔ quick and chatty |
@@ -63,11 +63,12 @@ The seed lives in the URL, so **the link is the song**:
 ```
 tom.wemiller.com/#sunset-drive                        a melody; the tag alone picks style, key, tempo and shape
 tom.wemiller.com/#sunset-drive&style=chip&busy=0.8    the same tag with a couple of dials turned
+tom.wemiller.com/#first-dance&style=jazz&key=Bb&bpm=132   any tag, in any style
 tom.wemiller.com/#song:road-trip&length=short         a whole auto-built song from a tag
 tom.wemiller.com/#song=eyJ2ZXJzaW9uIjox…               an edited song, carried in full
 ```
 
-Type any word after the `#` and Tom plays that song, the same one for everyone, every time. The address bar updates as you work, so copying it always copies exactly what you hear. Links list only the dials that differ from the tag's own recipe, so they stay short. The die rolls memorable tags like `#mellow-gecko-42`.
+Type any word after the `#` and Tom plays that song, the same one for everyone, every time. The address bar updates as you work, so copying it always copies exactly what you hear. Links list only the dials that differ from the tag's own recipe, so they stay short. A link, once shared, keeps its song: bare tags choose among the original five styles forever, so adding styles never changes an existing link (the tests pin this with golden audio hashes). New styles are one `&style=` away. The die rolls memorable tags like `#mellow-gecko-42`.
 
 The CLI reads the same links and prints one for every render, so a song moves between the browser and the terminal without changing a note.
 
@@ -105,6 +106,18 @@ Common flags: `--style`, `--seed` (any word or `#hashtag`), `--key` (e.g. `A`, `
 
 [Monkr](https://github.com/blaineam/Monkr) animates device mockups into video. When `tom` is installed, `monkr animate --music <style>` scores the clip with a Tom jingle whose final hit lands where you ask.
 
+## Styles
+
+| Style | Sound |
+|---|---|
+| **Synthwave** | Saw arpeggios, gated reverb snare, a pad that pumps with the kick |
+| **Bright Pop** | Plucked arps, claps, sidechained supersaw |
+| **Chiptune** | Square-wave lead, triangle bass, noise drums |
+| **Lo-fi** | Swung FM electric piano, soft drums, vinyl crackle |
+| **Marimba** | Warm marimba melody, shaker, soft pad |
+| **Jazz** | Walking upright bass that steps chromatically into each chord, swung ride and brushes, rootless piano comping, vibraphone melody over ii–V–I changes |
+| **Orchestral** | Swelling divided strings, french-horn melody, pizzicato, low strings, timpani tuned to the key (and timpani rolls into each chorus), concert-hall reverb |
+
 ## How it works
 
 - **Blueprints.** A song is a JSON list of blocks. Each block says *which* layers play and how its melody is shaped; each style says *how* those layers sound. The web app, the CLI and share links all produce the same blueprint for the same input.
@@ -118,7 +131,7 @@ lib/
   dsp.mjs         oscillators, envelopes, filters, reverb, mix bus
   instruments.mjs drums, plucks, pads, leads, bass
   theory.mjs      scales, chords, progressions, the melody generator
-  styles.mjs      the five sound palettes
+  styles.mjs      the sound palettes (synthwave, pop, chip, lofi, marimba, jazz, orchestral)
   blueprint.mjs   blocks, Auto song / finish / surprise, jingles, melodies
   arrange.mjs     blueprint → audio + note events
   share.mjs       hashtag seeds and share links

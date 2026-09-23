@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 — 2026-09-22
+
+- **Jazz** style: walking upright bass (roots on the downbeat, chord tones between, a chromatic step into every next chord), swung ride with hi-hat on 2 and 4 and brush ghost notes, rootless 3-5-7-9 piano voicings in a Charleston comp, and a swung vibraphone melody over ii–V–I changes.
+- **Orchestral** style: divided strings that swell in, a french-horn melody, pizzicato arpeggios, low strings, timpani tuned to the key with timpani rolls for builds, celesta bells, and a concert-hall reverb.
+- New instruments: upright bass, ride cymbal, brush snare, vibraphone, jazz piano, string ensemble, pizzicato, french horn, timpani, concert bass drum, celesta. MIDI export adds a Timpani track and GM ride/brush/bass-drum notes.
+- **Share links are now a promise.** Bare hashtags pick their style from the original five styles, frozen, so adding styles never changes a link someone already shared. Golden audio hashes in the tests enforce it.
+
 ## 0.1.0 — 2026-09-22
 
 First release.

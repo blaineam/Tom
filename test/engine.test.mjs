@@ -165,3 +165,43 @@ test('song links: tag while untouched, full blueprint once edited', () => {
   assert.match(link, /^#song=/);
   assert.equal(decodeShare(link).song.blocks[1].bars, 4);
 });
+
+// Share links are promises: once a link is out in the world it must keep
+// playing the same song. These hashes were recorded at 0.1.0; if one changes,
+// existing links have changed — treat that as a breaking change on purpose.
+const GOLDEN = {
+  '#sunset-drive': '2ff575c980708f8c1acf17975e86f9f0',
+  '#birthday-song': '100b2728b6a9b84476fea04f8154f155',
+  '#road-trip&style=chip&busy=0.8': '084bdbd0088e28b2f456a5eb48f04b77',
+  '#song:road-trip&length=short': 'f50f6c793a1582b0c699654733f70e1b',
+};
+test('existing share links still play exactly the same song', () => {
+  const h16 = (a) => hash(a).slice(0, 16);
+  for (const [link, want] of Object.entries(GOLDEN)) {
+    const d = decodeShare(link);
+    const bp = d.kind === 'melody' ? melodySong({ ...d.params, progression: d.params.progression || undefined, ending: true }) : d.song;
+    const r = render(bp);
+    assert.equal(h16(r.L) + h16(r.R), want, `${link} changed`);
+  }
+});
+
+test('jazz walks: a note on every beat, stepping chromatically into each new chord', () => {
+  const bp = { ...melodySong({ style: 'jazz', seed: 'walk', bars: 8, drums: 'none', ending: false }) };
+  const { events, bpm } = render(bp);
+  const beat = 60 / bpm;
+  const bass = events.filter((e) => e.track === 'bass').sort((a, b) => a.t - b.t);
+  assert.equal(bass.length, 8 * 4, 'one bass note per beat');
+  let approaches = 0, changes = 0;
+  for (let i = 1; i < bass.length; i++) {
+    const beatIdx = Math.round(bass[i].t / beat);
+    if (beatIdx % 4 === 0 && bass[i].midi !== bass[i - 1].midi) { changes++; if (Math.abs(bass[i].midi - bass[i - 1].midi) === 1) approaches++; }
+  }
+  assert.ok(changes > 0 && approaches === changes, `${approaches}/${changes} chord changes approached by a half step`);
+});
+
+test('orchestral builds roll on timpani, not snare', () => {
+  const song = { ...emptySong('orchestral'), blocks: [makeBlock('build', { seed: 1 })] };
+  const { events } = render(song);
+  assert.ok(events.some((e) => e.track === 'timpani'));
+  assert.ok(!events.some((e) => e.drum === 'snare'));
+});
