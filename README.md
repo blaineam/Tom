@@ -19,7 +19,7 @@
 
 ---
 
-Tom is named after the **tokay gecko**, one of the few lizards that sings (it's named after its own call: *"to-KAY!"*). Tom writes music on demand: a hook for a video, a loop for a game, a jingle that lands exactly on your end card, or a full three-minute song. Everything is generated from a **seed**, so the same seed and settings always produce the same music, byte for byte. And because Tom writes it all, what you make is yours to use: no samples, no licenses, no Content ID claims.
+Tom is named after the **tokay gecko**, one of the few lizards that sings (it's named after its own call: *"to-KAY!"*). Tom writes music on demand: a hook for a video, a loop for a game, a jingle that lands exactly on your end card, or a full three-minute song. Everything is generated from a **seed**, so the same seed and settings always produce the same music: the same notes, rhythm and sounds, on every computer. And because Tom writes it all, what you make is yours to use: no samples, no licenses, no Content ID claims.
 
 ## The web app
 
@@ -68,7 +68,7 @@ tom.wemiller.com/#song:road-trip&length=short         a whole auto-built song fr
 tom.wemiller.com/#song=eyJ2ZXJzaW9uIjox…               an edited song, carried in full
 ```
 
-Type any word after the `#` and Tom plays that song, the same one for everyone, every time. The address bar updates as you work, so copying it always copies exactly what you hear. Links list only the dials that differ from the tag's own recipe, so they stay short. A link, once shared, keeps its song: bare tags choose among the original five styles forever, so adding styles never changes an existing link (the tests pin this with golden audio hashes). New styles are one `&style=` away. The die rolls memorable tags like `#mellow-gecko-42`.
+Type any word after the `#` and Tom plays that song, the same one for everyone, every time. The address bar updates as you work, so copying it always copies exactly what you hear. Links list only the dials that differ from the tag's own recipe, so they stay short. A link, once shared, keeps its song: bare tags choose among the original five styles forever, so adding styles never changes an existing link (the tests pin every note of a set of golden links). New styles are one `&style=` away. The die rolls memorable tags like `#mellow-gecko-42`.
 
 The CLI reads the same links and prints one for every render, so a song moves between the browser and the terminal without changing a note.
 
@@ -123,7 +123,7 @@ Common flags: `--style`, `--seed` (any word or `#hashtag`), `--key` (e.g. `A`, `
 - **Blueprints.** A song is a JSON list of blocks. Each block says *which* layers play and how its melody is shaped; each style says *how* those layers sound. The web app, the CLI and share links all produce the same blueprint for the same input.
 - **Melodies with memory.** A motif (a bar of rhythm plus a melodic shape) is invented for each letter of the phrase form, then replayed. That repetition is what makes a tune hummable instead of a random walk. The contour steers the line, strong beats land on chord tones, every leap is answered by a step back, there are no tritone leaps, and the phrase resolves to the tonic.
 - **Synthesis from scratch.** Band-limited oscillators, Karplus–Strong plucks, FM electric piano and bells, biquad filters, a Freeverb reverb, echo, kick-driven sidechain and a soft-clipping master bus, all in plain JavaScript on `Float32Array`s. The same code runs in Node and in a Web Worker in the browser.
-- **Deterministic.** Every random choice comes from a seeded generator, and each layer draws from its own forked stream, so changing one part never reshuffles another.
+- **Deterministic.** Every random choice comes from a seeded generator, and each layer draws from its own forked stream, so changing one part never reshuffles another. The notes are identical everywhere. On one machine the audio is byte-identical too; across different CPUs, `sin`/`exp` can round differently in the last bit, far below anything audible.
 
 ```
 lib/

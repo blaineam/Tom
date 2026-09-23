@@ -167,21 +167,24 @@ test('song links: tag while untouched, full blueprint once edited', () => {
 });
 
 // Share links are promises: once a link is out in the world it must keep
-// playing the same song. These hashes were recorded at 0.1.0; if one changes,
-// existing links have changed — treat that as a breaking change on purpose.
+// playing the same song. These hashes pin the song itself (every note's
+// track, instrument, pitch, timing, length and velocity), recorded at 0.1.0.
+// Raw audio samples are only compared on one machine (see the first test):
+// sin/exp may differ in the last bit across CPU architectures, which changes
+// PCM bytes without changing a single note.
 const GOLDEN = {
-  '#sunset-drive': '2ff575c980708f8c1acf17975e86f9f0',
-  '#birthday-song': '100b2728b6a9b84476fea04f8154f155',
-  '#road-trip&style=chip&busy=0.8': '084bdbd0088e28b2f456a5eb48f04b77',
-  '#song:road-trip&length=short': 'f50f6c793a1582b0c699654733f70e1b',
+  '#sunset-drive': '8655a1072b6ffd2700e849e9',
+  '#birthday-song': '10a5868e7753019b891c516e',
+  '#road-trip&style=chip&busy=0.8': '517f59b4ee28cd38c30221b8',
+  '#song:road-trip&length=short': 'f6954b28d8d4d5fed1e1fc3d',
 };
 test('existing share links still play exactly the same song', () => {
-  const h16 = (a) => hash(a).slice(0, 16);
+  const r6 = (x) => Math.round(x * 1e6) / 1e6;
   for (const [link, want] of Object.entries(GOLDEN)) {
     const d = decodeShare(link);
     const bp = d.kind === 'melody' ? melodySong({ ...d.params, progression: d.params.progression || undefined, ending: true }) : d.song;
-    const r = render(bp);
-    assert.equal(h16(r.L) + h16(r.R), want, `${link} changed`);
+    const ev = render(bp).events.map((e) => [e.track, e.voice, e.midi ?? e.drum, r6(e.t), r6(e.dur), r6(e.vel)]);
+    assert.equal(createHash('sha1').update(JSON.stringify(ev)).digest('hex').slice(0, 24), want, `${link} changed`);
   }
 });
 

@@ -5,7 +5,7 @@
 - **Jazz** style: walking upright bass (roots on the downbeat, chord tones between, a chromatic step into every next chord), swung ride with hi-hat on 2 and 4 and brush ghost notes, rootless 3-5-7-9 piano voicings in a Charleston comp, and a swung vibraphone melody over ii–V–I changes.
 - **Orchestral** style: divided strings that swell in, a french-horn melody, pizzicato arpeggios, low strings, timpani tuned to the key with timpani rolls for builds, celesta bells, and a concert-hall reverb.
 - New instruments: upright bass, ride cymbal, brush snare, vibraphone, jazz piano, string ensemble, pizzicato, french horn, timpani, concert bass drum, celesta. MIDI export adds a Timpani track and GM ride/brush/bass-drum notes.
-- **Share links are now a promise.** Bare hashtags pick their style from the original five styles, frozen, so adding styles never changes a link someone already shared. Golden audio hashes in the tests enforce it.
+- **Share links are now a promise.** Bare hashtags pick their style from the original five styles, frozen, so adding styles never changes a link someone already shared. Golden note-level hashes in the tests enforce it (audio samples can differ in the last bit across CPU architectures; the notes cannot).
 
 ## 0.1.0 — 2026-09-22
 
@@ -17,5 +17,5 @@ First release.
 - Five styles: Synthwave, Bright Pop, Chiptune, Lo-fi, Marimba.
 - Melody generator: motif + phrase form (AABA, ABAB, …) + contour, strong beats on chord tones, gap-filled leaps, no tritone leaps, tonic cadence.
 - Export WAV and Standard MIDI (one track per layer, GM drums); ffmpeg adds m4a/mp3 and loudness normalization in the CLI.
-- Deterministic: the same blueprint and seed render byte-identical audio.
+- Deterministic: the same blueprint and seed give the same notes everywhere, and byte-identical audio on the same machine.
 - Zero dependencies. The same engine runs in Node and in the browser (Web Worker).
