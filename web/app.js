@@ -1,5 +1,5 @@
-// Tom — web music machine. Melody Machine + Lego-style Composer, both driven
-// by the same engine as the CLI (rendered in a Web Worker).
+// Tom — web music machine. Melody Machine, Lego-style Composer and Radio, all
+// driven by the same engine as the CLI (rendered in a Web Worker).
 import { STYLES } from './lib/styles.mjs';
 import { SCALES, CONTOUR_NAMES, chord, parseKey, noteName, spell, parseProgression, layoutChords } from './lib/theory.mjs';
 import {
@@ -11,6 +11,8 @@ import { rng } from './lib/rng.mjs';
 import { encodeWav } from './lib/wav.mjs';
 import { toMidi } from './lib/midi.mjs';
 import { tagOf, randomTag, melodyFromTag, melodyHash, songHash, songFromTag, decodeShare } from './lib/share.mjs';
+import { STATIONS, MIX, stationName } from './lib/radio.mjs';
+import { createRadio } from './radio.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const h = (tag, attrs = {}, ...kids) => {
@@ -46,6 +48,7 @@ const state = {
   melody: store.get('melody', null) || melodyFromTag(randomTag()),
   song: store.get('song', null) || songFromTag('neon-gecko-57', { length: 'short', style: 'synthwave' }),
   selected: null,
+  station: store.get('station', null),
 };
 
 // ─── rendering (worker) + playback ──────────────────────────────────────────
@@ -67,11 +70,20 @@ async function renderCached(bp) {
 }
 
 let ac = null, src = null, playing = null;
+// Rendering takes a moment, so a press of Play is pending until its audio is
+// ready. Stop (or switching tabs) bumps the token, and a render that finishes
+// for an old token never starts: only one source can ever be playing.
+let playToken = 0, loading = false;
 async function startPlayback(bp, { loop = false, view = state.view } = {}) {
   stopPlayback();
-  const r = await renderCached(bp);
-  ac ??= new AudioContext();
-  if (ac.state === 'suspended') await ac.resume();
+  radio.stop();
+  const my = playToken;
+  loading = true; setPlayButton(true);
+  ac ??= new AudioContext(); // created inside the tap, so Safari lets it start
+  const resumed = ac.state === 'suspended' ? ac.resume() : null;
+  let r;
+  try { r = await renderCached(bp); await resumed; } finally { if (my === playToken) loading = false; }
+  if (my !== playToken) return;
   const buf = ac.createBuffer(2, r.L.length, r.sampleRate);
   buf.copyToChannel(r.L, 0); buf.copyToChannel(r.R, 1);
   src = ac.createBufferSource();
@@ -79,16 +91,21 @@ async function startPlayback(bp, { loop = false, view = state.view } = {}) {
   src.onended = () => { if (playing && !loop) stopPlayback(); };
   src.start();
   playing = { t0: ac.currentTime, duration: r.duration, loop, view, bp };
-  $('#play').classList.add('on'); $('#play .ico').textContent = '■'; $('#play .lbl').textContent = 'Stop'; $('#play').setAttribute('aria-label', 'Stop');
+  setPlayButton(true);
   requestAnimationFrame(tick);
 }
 function stopPlayback() {
+  playToken++; loading = false;
   if (src) { src.onended = null; try { src.stop(); } catch { /* already stopped */ } src = null; }
   playing = null;
-  $('#play').classList.remove('on'); $('#play .ico').textContent = '▶'; $('#play .lbl').textContent = 'Play'; $('#play').setAttribute('aria-label', 'Play');
+  setPlayButton(state.view === 'radio' && radio.active);
   $('#playhead').hidden = true;
   drawRoll();
   updateClock(0);
+}
+function setPlayButton(on) {
+  const b = $('#play'), label = on ? (state.view === 'radio' ? 'Pause' : 'Stop') : 'Play';
+  b.classList.toggle('on', on); $('.ico', b).textContent = on ? (state.view === 'radio' ? '❚❚' : '■') : '▶'; $('.lbl', b).textContent = label; b.setAttribute('aria-label', label);
 }
 function position() {
   if (!playing) return 0;
@@ -105,10 +122,12 @@ function tick() {
 }
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function updateClock(t) {
+  if (state.view === 'radio') { $('#clock').textContent = `${fmt(radio.position)} / ${fmt(radio.duration)}`; return; }
   const total = playing ? playing.duration : currentDuration();
   $('#clock').textContent = `${fmt(t)} / ${fmt(total)}`;
 }
 function currentDuration() {
+  if (state.view === 'radio') return radio.duration;
   try { return timeline(state.view === 'melody' ? melodyBlueprint() : state.song).duration; } catch { return 0; }
 }
 function setStatus(s) { $('#status').textContent = s; }
@@ -171,7 +190,7 @@ function changedMelody() {
   renderMelodyControls();
   drawRoll();
   clearTimeout(melodyTimer);
-  melodyTimer = setTimeout(() => { if (playing?.view === 'melody') startPlayback(melodyBlueprint(), { loop: true, view: 'melody' }); else renderCached(melodyBlueprint()).catch(showError); }, 180);
+  melodyTimer = setTimeout(() => { if (playing?.view === 'melody' || (loading && state.view === 'melody')) startPlayback(melodyBlueprint(), { loop: true, view: 'melody' }); else renderCached(melodyBlueprint()).catch(showError); }, 180);
 }
 
 function chordLabel(root, S, degree) {
@@ -320,7 +339,9 @@ function movePlayhead(t) {
   const end = i === starts.length - 1 ? duration : starts[i + 1];
   const frac = (t - starts[i]) / Math.max(0.001, end - starts[i]);
   ph.hidden = false;
-  ph.style.left = `${bricks[i].offsetLeft + frac * bricks[i].offsetWidth - $('.timeline-wrap').scrollLeft + 14}px`;
+  // offsetLeft is already measured from .timeline-wrap (the playhead's containing block, padding included),
+  // and the playhead scrolls with the bricks, so no padding or scroll correction belongs here.
+  ph.style.left = `${bricks[i].offsetLeft + frac * bricks[i].offsetWidth - ph.offsetWidth / 2}px`;
 }
 
 function renderInspector() {
@@ -383,6 +404,102 @@ function soloBlock(b) {
   startPlayback(bp, { loop: false, view: 'solo' }).catch(showError);
 }
 
+// ─── Radio ──────────────────────────────────────────────────────────────────
+const radio = createRadio({ onChange: () => { renderRadio(); if (radio.active) stopPlayback(); } });
+
+function tuneIn(station) {
+  stopPlayback();
+  state.station = station; store.set('station', station);
+  radio.tune(station);
+  syncHash();
+}
+function radioToggle() {
+  const st = radio.state;
+  if (radio.active) return radio.pause();
+  if (st.current && st.station === state.station) return radio.resume();
+  if (state.station) return tuneIn(state.station);
+  toast('Pick a station below');
+}
+
+function renderRadio() {
+  const st = radio.state, t = st.current, onAir = radio.active;
+  $('.tabs').classList.toggle('on-air', onAir);
+  if (state.view === 'radio') setPlayButton(onAir);
+  if (state.view !== 'radio') return;
+  const station = st.station ?? state.station;
+  document.documentElement.style.setProperty('--style', t ? STYLES[t.song.style].color : station && station !== MIX ? STYLES[station].color : '#ffd23f');
+  $('#stations').replaceChildren(...STATIONS.map((id) => h('button', {
+    class: `station${id === MIX ? ' mix' : ''}`, type: 'button', 'aria-pressed': String(id === station),
+    style: id === MIX ? {} : { '--c': STYLES[id].color },
+    on: { click: () => (id === st.station && onAir ? null : tuneIn(id)) },
+  }, h('b', {}, `${stationName(id)} Radio`), h('small', {}, id === MIX ? 'Every style, one after another.' : STYLES[id].blurb))));
+
+  $('#r-station').textContent = station ? `📻 ${stationName(station).toUpperCase()} RADIO${onAir ? ' · ON AIR' : ''}` : '📻 TOM RADIO';
+  $('#r-status').textContent = st.status === 'tuning' ? (t ? 'writing the next song…' : 'writing your first song…') : st.error || '';
+  $('#r-title').textContent = t ? t.title : station ? (st.status === 'tuning' ? 'Tuning in…' : `${stationName(station)} Radio`) : 'Pick a station';
+  $('#r-meta').textContent = t ? `${STYLES[t.song.style].name.toUpperCase()} · ${t.song.key} ${t.song.mode} · ${Math.round(t.song.bpm)} BPM · ${t.song.origin.length === 'short' ? 'SHORT' : 'FULL'} SONG` : 'Pick a style and Tom writes an endless run of new songs in it.';
+  $('#r-next').textContent = st.upcoming ? `next: ${st.upcoming.title}` : t && st.status === 'playing' ? 'writing the next song…' : '';
+  const playing = st.status === 'playing' || st.status === 'tuning';
+  const btn = $('#r-play');
+  btn.disabled = !station;
+  $('.ico', btn).textContent = playing ? '❚❚' : '▶';
+  $('.lbl', btn).textContent = playing ? 'Pause' : t && st.station === station ? 'Resume' : 'Tune in';
+  $('#r-skip').disabled = !t || st.status === 'tuning';
+  $('#r-keep').disabled = $('#r-link').disabled = !t;
+  drawRadio();
+  if (onAir && !radioFrame) radioFrame = requestAnimationFrame(radioTick);
+}
+
+let radioFrame = 0;
+function radioTick() {
+  radioFrame = 0;
+  if (state.view !== 'radio' || !radio.active) { drawRadio(); return; }
+  drawRadio();
+  radioFrame = requestAnimationFrame(radioTick);
+}
+
+const MELODIC = new Set(['lead', 'counter', 'bells', 'octaves']);
+/** A scrolling window of the notes around "now": melody bright, everything else as a glow. */
+function drawRadio() {
+  if (state.view !== 'radio') return;
+  const t = radio.state.current, now = radio.position, dur = radio.duration;
+  $('#r-bar').style.width = dur ? `${Math.min(100, (now / dur) * 100)}%` : '0';
+  $('#r-time').textContent = `${fmt(now)} / ${fmt(dur)}`;
+  updateClock(now);
+  const cv = $('#r-roll'), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (!W) return;
+  if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  if (!t) return;
+  const color = STYLES[t.song.style].color, span = 8, t0 = now - span * 0.35, x = (s) => ((s - t0) / span) * W;
+  const lo = 28, hi = 100, y = (m) => H - 6 - ((m - lo) / (hi - lo)) * (H - 12);
+  for (const n of t.notes) {
+    if (n.t > t0 + span || n.t + n.dur < t0) continue;
+    const lead = MELODIC.has(n.track), on = now >= n.t && now < n.t + Math.min(n.dur, 1.5);
+    g.globalAlpha = lead ? 1 : 0.28;
+    g.fillStyle = on && lead ? '#ffffff' : lead ? color : 'rgba(159,242,184,1)';
+    g.shadowColor = color; g.shadowBlur = on && lead ? 14 : 0;
+    const nx = x(n.t), nw = Math.max(3, x(n.t + Math.min(n.dur, lead ? 2 : 1)) - nx - 1);
+    roundRect(g, nx, y(n.midi) - (lead ? 3 : 1.5), nw, lead ? 6 : 3, lead ? 3 : 1.5); g.fill();
+  }
+  g.globalAlpha = 1; g.shadowBlur = 0;
+  g.fillStyle = '#ffd23f'; g.fillRect(x(now), 0, 2, H);
+}
+
+$('#r-play').addEventListener('click', radioToggle);
+$('#r-skip').addEventListener('click', () => radio.skip());
+$('#r-keep').addEventListener('click', () => {
+  const t = radio.state.current; if (!t) return;
+  radio.pause();
+  state.song = structuredClone(t.song); state.selected = null; store.set('song', state.song);
+  switchView('compose'); toast(`Opened ${t.title} in the composer`);
+});
+$('#r-link').addEventListener('click', async () => {
+  const t = radio.state.current; if (!t) return;
+  const url = `${location.origin}${location.pathname}${songHash(t.song)}`;
+  try { await navigator.clipboard.writeText(url); toast('Song link copied'); } catch { prompt('Copy this link', url); }
+});
+
 // ─── export / import / share ────────────────────────────────────────────────
 const slug = (s) => (s || 'tom').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tom';
 function download(bytes, name, type) {
@@ -390,9 +507,10 @@ function download(bytes, name, type) {
   const a = h('a', { href: url, download: name }); document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
-function exportBlueprint() { return state.view === 'melody' ? melodyBlueprint({ ending: true }) : state.song; }
+function exportBlueprint() { return state.view === 'melody' ? melodyBlueprint({ ending: true }) : state.view === 'radio' ? radio.state.current?.song : state.song; }
 async function doExport(kind) {
   const bp = exportBlueprint();
+  if (!bp) return toast('Tune in to a station first');
   const name = slug(bp.title);
   if (kind === 'json') return download(JSON.stringify(bp, null, 2), `${name}.json`, 'application/json');
   if (kind === 'link') {
@@ -408,12 +526,22 @@ async function doExport(kind) {
   if (kind === 'midi') download(toMidi(r.events, r.bpm, bp.title), `${name}.mid`, 'audio/midi');
 }
 
+function viewHash() {
+  if (state.view === 'radio') return state.station ? `#radio:${state.station}` : '#radio';
+  return state.view === 'melody' ? melodyHash(state.melody) : songHash(state.song);
+}
 function syncHash() {
-  const hash = state.view === 'melody' ? melodyHash(state.melody) : songHash(state.song);
+  const hash = viewHash();
   if (location.hash !== hash || location.search) history.replaceState(null, '', `${location.pathname}${hash}`); // also drops ?v= left by an update
 }
 function loadFromHash() {
   if (!location.hash || location.hash === '#') return false;
+  const radioLink = /^#radio(?::([\w-]+))?$/.exec(location.hash);
+  if (radioLink) {
+    if (radioLink[1] && STATIONS.includes(radioLink[1])) { state.station = radioLink[1]; store.set('station', state.station); }
+    state.view = 'radio';
+    return true;
+  }
   try {
     const d = decodeShare(location.hash);
     if (!d) return false;
@@ -426,20 +554,25 @@ function showError(e) { console.error(e); setStatus(''); toast(e.message || Stri
 
 // ─── wiring ─────────────────────────────────────────────────────────────────
 function switchView(v) {
-  if (playing) stopPlayback();
+  stopPlayback();
   state.view = v; store.set('view', v);
-  $('#tab-melody').setAttribute('aria-selected', String(v === 'melody'));
-  $('#tab-compose').setAttribute('aria-selected', String(v === 'compose'));
-  $('#view-melody').hidden = v !== 'melody';
-  $('#view-compose').hidden = v !== 'compose';
-  if (v === 'melody') { renderMelodyControls(); drawRoll(); } else renderComposer();
+  for (const k of ['melody', 'compose', 'radio']) {
+    $(`#tab-${k}`).setAttribute('aria-selected', String(v === k));
+    $(`#view-${k}`).hidden = v !== k;
+  }
+  // The radio keeps playing while you browse the other tabs; their Play button takes over from it.
+  setPlayButton(v === 'radio' && radio.active);
+  if (v === 'melody') { renderMelodyControls(); drawRoll(); } else if (v === 'compose') renderComposer(); else renderRadio();
+  updateClock(0);
   syncHash();
 }
 
 $('#tab-melody').addEventListener('click', () => switchView('melody'));
 $('#tab-compose').addEventListener('click', () => switchView('compose'));
+$('#tab-radio').addEventListener('click', () => switchView('radio'));
 $('#play').addEventListener('click', () => {
-  if (playing) return stopPlayback();
+  if (state.view === 'radio') return radioToggle();
+  if (playing || loading) return stopPlayback();
   const p = state.view === 'melody' ? startPlayback(melodyBlueprint(), { loop: true, view: 'melody' }) : state.song.blocks.length ? startPlayback(state.song, { view: 'compose' }) : Promise.resolve(toast('Add some blocks first'));
   p.catch(showError);
 });
@@ -497,8 +630,9 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, select, textarea')) return;
   if (e.code === 'Space') { e.preventDefault(); $('#play').click(); }
   if (e.key === 'n' && state.view === 'melody') $('#dice').click();
+  if (e.key === 'n' && state.view === 'radio') radio.skip();
 });
-window.addEventListener('resize', () => drawRoll(playing ? position() : null));
+window.addEventListener('resize', () => { drawRoll(playing ? position() : null); drawRadio(); });
 
 // When a newer Tom is deployed while this page is cached, offer it.
 async function checkForUpdate() {
@@ -514,12 +648,19 @@ async function checkForUpdate() {
   } catch { /* offline: keep playing */ }
 }
 
+// Offline: a service worker caches the app (it all renders on the device anyway).
+if ('serviceWorker' in navigator && isSecureContext) {
+  const first = !navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('./sw.js').then((reg) => {
+    if (first) reg.addEventListener('updatefound', () => reg.installing?.addEventListener('statechange', (e) => { if (e.target.state === 'activated') toast('🦎 Tom now works offline'); }));
+  }).catch(() => { /* private mode or blocked: still works online */ });
+}
+
 loadFromHash();
 switchView(state.view);
 checkForUpdate();
 // Paste any #hashtag into the address bar and Tom plays that song.
 window.addEventListener('hashchange', () => {
-  const before = state.view === 'melody' ? melodyHash(state.melody) : songHash(state.song);
-  if (location.hash === before) return;
-  if (loadFromHash()) { stopPlayback(); switchView(state.view); toast(`Loaded ${decodeURIComponent(location.hash)}`); }
+  if (location.hash === viewHash()) return;
+  if (loadFromHash()) { stopPlayback(); switchView(state.view); if (state.view !== 'radio') toast(`Loaded ${decodeURIComponent(location.hash)}`); }
 });

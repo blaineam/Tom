@@ -10,10 +10,11 @@ import { createHash } from 'node:crypto';
 import { render, timeline, blockMelody } from '../lib/arrange.mjs';
 import { jingle, melodySong, autoSong, autoFill, makeBlock, emptySong, validate } from '../lib/blueprint.mjs';
 import { parseProgression, parseKey, noteName } from '../lib/theory.mjs';
-import { STYLE_IDS } from '../lib/styles.mjs';
+import { STYLES, STYLE_IDS } from '../lib/styles.mjs';
 import { encodeWav } from '../lib/wav.mjs';
 import { toMidi } from '../lib/midi.mjs';
 import { tagOf, melodyFromTag, melodyHash, songFromTag, songHash, decodeShare } from '../lib/share.mjs';
+import { radioTrack, STATIONS, MIX } from '../lib/radio.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const hash = (a) => createHash('sha1').update(Buffer.from(a.buffer)).digest('hex');
@@ -273,4 +274,38 @@ test('funk: ghost notes, an open hat on the "and" of 4, and slap bass that pops 
   assert.ok(events.some((e) => e.drum === 'hat' && e.open && pos(e) === 3.5));
   const bass = events.filter((e) => e.track === 'bass').map((e) => e.midi);
   assert.ok(bass.some((m) => bass.includes(m - 12)), 'octave pops');
+});
+
+test('radio: a station plays its style, varies every track, and repeats for the same seed', () => {
+  for (const station of STATIONS.filter((s) => s !== MIX)) {
+    const tracks = [0, 1, 2, 3].map((n) => radioTrack(station, 'demo', n));
+    assert.ok(tracks.every((t) => t.style === station), `${station}: stays on style`);
+    assert.equal(new Set(tracks.map((t) => t.origin.tag)).size, 4, `${station}: fresh song each track`);
+    const again = radioTrack(station, 'demo', 2), noIds = (song) => ({ ...song, blocks: song.blocks.map(({ id, ...b }) => b) });
+    assert.deepEqual(noIds(again), noIds(tracks[2]), `${station}: same seed, same song`);
+    assert.notEqual(radioTrack(station, 'other', 0).origin.tag, tracks[0].origin.tag);
+    for (const t of tracks) {
+      assert.ok(Math.abs(t.bpm / STYLES[station].bpm - 1) <= 0.07, `${station}: tempo stays in the style's feel`);
+      assert.equal(t.blocks.at(-1).type, 'hit', 'every track ends properly');
+    }
+  }
+});
+
+test('radio: mix visits every style before repeating one', () => {
+  const styles = STYLE_IDS.map((_, n) => radioTrack(MIX, 'demo', n).style);
+  assert.deepEqual([...styles].sort(), [...STYLE_IDS].sort());
+  for (let n = 1; n < STYLE_IDS.length * 3; n++) assert.notEqual(radioTrack(MIX, 's', n).style, radioTrack(MIX, 's', n - 1).style);
+});
+
+test('radio: every track has a link that rebuilds the same song', () => {
+  const strip = (song) => song.blocks.map(({ id, ...b }) => b);
+  for (const station of [MIX, 'jazz', 'edm']) for (let n = 0; n < 4; n++) {
+    const t = radioTrack(station, 'links', n);
+    const d = decodeShare(songHash(t));
+    assert.equal(d.kind, 'song');
+    assert.deepEqual(strip(d.song), strip(t));
+    assert.equal(d.song.key, t.key); assert.equal(d.song.bpm, t.bpm); assert.equal(d.song.style, t.style);
+  }
+  assert.deepEqual(decodeShare('#radio:jazz'), { kind: 'radio', station: 'jazz' });
+  assert.deepEqual(decodeShare('https://tom.wemiller.com/#radio'), { kind: 'radio', station: null });
 });

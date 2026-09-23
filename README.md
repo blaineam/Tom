@@ -5,13 +5,14 @@
 <h1 align="center">Tom</h1>
 
 <p align="center">
-  <strong>A music machine. Dial in a melody in seconds, or snap a whole song together like Lego.</strong><br>
-  Seeded, parameterized, royalty-free. In your browser or on the command line.
+  <strong>A music machine. Dial in a melody in seconds, snap a whole song together like Lego, or tune in to endless radio.</strong><br>
+  Seeded, parameterized, royalty-free. In your browser (even offline) or on the command line.
 </p>
 
 <p align="center">
   <a href="https://tom.wemiller.com"><strong>Open Tom</strong></a> &bull;
   <a href="#the-web-app">Web app</a> &bull;
+  <a href="#radio">Radio</a> &bull;
   <a href="#the-cli">CLI</a> &bull;
   <a href="#share-links-a-hashtag-is-a-song">Share links</a> &bull;
   <a href="#how-it-works">How it works</a>
@@ -23,7 +24,7 @@ Tom is named after the **tokay gecko**, one of the few lizards that sings (it's 
 
 ## The web app
 
-**[tom.wemiller.com](https://tom.wemiller.com)** runs entirely in your browser. Nothing is uploaded.
+**[tom.wemiller.com](https://tom.wemiller.com)** runs entirely in your browser. Nothing is uploaded, and after your first visit it works **offline**: on iPhone or iPad, tap Share → **Add to Home Screen** and Tom opens like an app, with or without a connection.
 
 ### Melody Machine
 
@@ -55,6 +56,14 @@ Songs are built from **blocks**, like Lego bricks: **Intro, Verse, Build, Chorus
 - **Re-roll everything unlocked:** 🔒 **Lock** any block you love, and Auto will never touch it.
 
 **Export** gives you WAV audio, a **MIDI** file (one track per layer, General MIDI drums) for Logic, GarageBand or Ableton, or the song as JSON. Your work autosaves in the browser.
+
+### Radio
+
+Pick a station, one per style plus **Mix**, which rotates through every style, and Tom writes an endless run of brand-new songs in it: a fresh tag, key and tempo for each, mostly full-length. The next song is written while the current one plays, so the gaps between songs are just the ring-out of each ending.
+
+- **It keeps playing in the background.** Radio plays through a media element rather than Web Audio, so on iPhone it carries on with the screen locked, with Safari in the background, and with the ringer switch on silent. The lock screen and Control Center show the song and station, with play, pause, next and scrubbing.
+- **Every song is a real song.** **Open in the composer** takes the one you're hearing into the composer to keep editing, and **Copy link** gives its `#song:` link, the same song for anyone.
+- `tom.wemiller.com/#radio:jazz` opens the Jazz station.
 
 ## Share links: a hashtag is a song
 
@@ -88,6 +97,7 @@ tom song --seed road-trip --length short --out road-trip.m4a --blueprint
 tom jingle --style synthwave --length 9.1 --hit 6.75 --out bed.wav
 tom render 'https://tom.wemiller.com/#sunset-drive&busy=0.8'  # any share link
 tom render my-song.json                                       # a song saved from the composer
+tom radio --station funk --count 5 --format m4a                # the next five songs of a radio station
 tom compose                                                   # run the web app locally
 tom styles | tom doctor
 ```
@@ -98,6 +108,7 @@ tom styles | tom doctor
 | `tom song` | A whole auto-arranged song. `--length full\|short\|loop` |
 | `tom jingle` | A short bed whose final hit lands **exactly** at `--hit` seconds and rings out to `--length`. Tempo is solved so the hit falls on a bar line, which makes it ideal for video end cards. |
 | `tom render` | A composer song (`.json`), a share link, or a bare `#hashtag`. |
+| `tom radio` | The next few songs of a station, one file each, into a folder. `--station <style\|mix> --count 3 --seed <s> --out <dir> --format wav\|m4a\|mp3`. The same `--seed` gives the same songs. |
 | `tom compose` | Serves the web app at `http://127.0.0.1:5178`. |
 
 Common flags: `--style`, `--seed` (any word or `#hashtag`), `--key` (e.g. `A`, `F#`, `Eb`), `--mode`, `--bpm`, `--out`, `--midi [file]`, `--blueprint [file]`, `--loudness <LUFS>`.
@@ -141,8 +152,9 @@ lib/
   blueprint.mjs   blocks, Auto song / finish / surprise, jingles, melodies
   arrange.mjs     blueprint → audio + note events
   share.mjs       hashtag seeds and share links
+  radio.mjs       stations: track n of a station, as a song with its own link
   wav.mjs midi.mjs  file writers
-web/              the web app (no build step)
+web/              the web app (no build step); sw.js caches it for offline use
 tom.mjs           the CLI
 ```
 

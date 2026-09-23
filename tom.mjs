@@ -6,6 +6,7 @@
 //   tom song        a whole auto-arranged song
 //   tom jingle      a short bed with a final hit at an exact time (video end cards)
 //   tom render      render a blueprint saved from the web composer
+//   tom radio       render the next few songs of a style's radio station
 //   tom compose     open the Lego-style web composer locally
 //   tom styles      list styles
 //   tom doctor      check the environment
@@ -24,6 +25,7 @@ import { render } from './lib/arrange.mjs';
 import { jingle, melodySong, validate } from './lib/blueprint.mjs';
 import { tagOf, randomTag, melodyFromTag, melodyHash, songFromTag, songHash, decodeShare, shareUrl, HOSTED_URL } from './lib/share.mjs';
 import { STYLES } from './lib/styles.mjs';
+import { STATIONS, MIX, radioTrack, trackTitle, stationName } from './lib/radio.mjs';
 import { SCALES, CONTOUR_NAMES } from './lib/theory.mjs';
 import { encodeWav } from './lib/wav.mjs';
 import { toMidi } from './lib/midi.mjs';
@@ -38,6 +40,8 @@ ${c.bold('Usage')}
   tom song    [options]              a whole auto-arranged song
   tom jingle  [options]              short bed with a final hit (video end cards)
   tom render  <song.json | link | #tag>  render a composer song or any share link
+  tom radio   [--station <style|mix>] [--count 3] [--seed s] [--out dir] [--format wav|m4a|mp3]
+                                     the next few songs of a radio station, one file each
   tom compose [--port 5178] [--no-open]  open the Lego-style composer locally
   tom styles                         list styles
   tom doctor                         check node / ffmpeg
@@ -143,7 +147,7 @@ function common(a) {
 }
 
 async function serve(port, open = true) {
-  const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
+  const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
   const server = createServer(async (req, res) => {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p === '/') p = '/index.html';
@@ -157,6 +161,21 @@ async function serve(port, open = true) {
   const url = `http://127.0.0.1:${port}/`;
   ok(`Composer running at ${c.bold(url)}  ${c.dim('(Ctrl-C to stop)')}`);
   if (open && process.platform === 'darwin') spawnSync('open', [url]);
+}
+
+/** Render the next few songs of a radio station into a folder. */
+async function radioCmd(a) {
+  const station = a.station && a.station !== true ? a.station : a.style && a.style !== true ? a.style : MIX;
+  if (!STATIONS.includes(station)) throw new Error(`Unknown station "${station}". Try: ${STATIONS.join(', ')}`);
+  const seed = a.seed !== undefined && a.seed !== true ? String(tagOf(a.seed)) : randomTag();
+  const count = Math.max(1, Math.min(50, num(a.count, 3)));
+  const dir = a.out && a.out !== true ? a.out : `tom-radio-${station}-${seed}`;
+  const ext = a.format && a.format !== true ? a.format.replace(/^\./, '') : 'wav';
+  info(`${stationName(station)} Radio ${c.dim(`(station seed ${seed}; the same seed plays the same songs)`)}`);
+  for (let n = 0; n < count; n++) {
+    const bp = radioTrack(station, seed, n);
+    await writeOutputs(bp, { ...a, out: join(dir, `${String(n + 1).padStart(2, '0')} ${trackTitle(bp)}.${ext}`) }, '', songHash(bp));
+  }
 }
 
 async function main() {
@@ -214,12 +233,15 @@ async function main() {
       if (/^https?:|^#/.test(src) || (!existsSync(src) && !src.endsWith('.json'))) {
         const d = decodeShare(src.includes('#') ? src : `#${src}`);
         if (!d) throw new Error(`Nothing to render in "${src}"`);
+        if (d.kind === 'radio') return radioCmd({ ...a, station: d.station || a.station });
         if (d.kind === 'melody') return writeOutputs(melodySong({ ...d.params, progression: d.params.progression || undefined, ending: true }), a, `tom-melody-${d.params.seed}.wav`, melodyHash(d.params));
         return writeOutputs(d.song, a, `tom-song-${d.song.origin?.tag ?? 'shared'}.wav`, songHash(d.song));
       }
       const bp = validate(JSON.parse(await readFile(src, 'utf8')));
       return writeOutputs(bp, a, src.replace(/\.json$/i, '') + '.wav', songHash({ ...bp, edited: true }));
     }
+    case 'radio':
+      return radioCmd(a);
     case 'compose':
       console.log(mascot());
       return serve(num(a.port, 5178), a.open !== false);

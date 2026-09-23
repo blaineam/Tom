@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-09-23
+
+- **Radio.** Pick a station (any style, or **Mix**, which rotates through every style without repeats) and Tom writes an endless run of new songs, each with a fresh tag, key and tempo (within ±6% of the style's feel). The next song renders while the current one plays.
+- **Background playback on iOS.** Radio plays through an audio element, so it keeps going with the screen locked, with Safari in the background, and with the ringer switch on silent. The lock screen and Control Center show the song, station and artwork, with play, pause, next and scrubbing (Media Session).
+- Every radio song is an ordinary auto-built song: **Open in the composer** keeps editing it, and **Copy link** shares its `#song:` link. `#radio:<style>` opens a station.
+- **Works offline.** A service worker caches the app on your first visit, and Add to Home Screen installs it (manifest and icons). Stamped deploy files are cached for good, the page itself is network-first, and files from older deploys are pruned.
+- CLI: `tom radio --station <style|mix> --count N` renders the next songs of a station into a folder. `tom render '#radio:…'` does the same.
+- Fixed: the composer's play cursor ran ahead of the blocks (it counted the timeline's padding twice, and drifted further once the timeline scrolled).
+- Fixed: Play could start several songs at once if pressed while a song was still rendering, which left audio that Stop couldn't reach, and switching tabs mid-render let the song start on the other tab. Play now shows Stop at once, and Stop or a tab switch cancels a render that's still in progress.
+- Fixed: Orchestral and Country endings (timpani, strum) drew from a random seed, so the same link's final hit could differ slightly between renders. The ending's seed now comes from the song's. The notes are unchanged (golden test).
+
 ## 0.5.0 — 2026-09-22
 
 - **Country** style: boom-chick (bass alternating root and fifth on 1 and 3, walking up into each chord change; a strummed acoustic guitar on 2 and 4 with an up-strum on the "and" of 4), a brushed two-step kit, banjo forward rolls, a pedal-steel melody that swells in and slides up into its notes, and a fiddle counter-line, in G major at 112 BPM.

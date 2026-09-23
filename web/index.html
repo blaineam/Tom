@@ -8,7 +8,13 @@
 <meta property="og:title" content="Tom — Music Machine">
 <meta property="og:description" content="Dial in a melody in seconds, or snap a whole song together like Lego bricks. Royalty-free, WAV + MIDI export.">
 <meta name="theme-color" content="#14161b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tom">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
@@ -25,6 +31,7 @@
     <nav class="tabs" role="tablist" aria-label="Mode">
       <button role="tab" id="tab-melody" aria-selected="true" aria-controls="view-melody">Melody Machine</button>
       <button role="tab" id="tab-compose" aria-selected="false" aria-controls="view-compose">Composer</button>
+      <button role="tab" id="tab-radio" aria-selected="false" aria-controls="view-radio">Radio<span class="on-air-dot" aria-hidden="true"></span></button>
     </nav>
     <div class="transport">
       <button id="play" class="btn play" aria-label="Play"><span class="ico">▶</span><span class="lbl">Play</span></button>
@@ -110,8 +117,30 @@
     <section class="panel inspector" id="inspector" aria-label="Selected block"></section>
   </main>
 
+  <!-- ─── Radio ─── -->
+  <main id="view-radio" role="tabpanel" aria-labelledby="tab-radio" class="view" hidden>
+    <section class="screen-wrap radio-wrap">
+      <div class="screen radio-screen">
+        <div class="screen-meta"><span id="r-station" class="lcd-text"></span><span id="r-status" class="lcd-text dim"></span></div>
+        <canvas id="r-roll" aria-hidden="true"></canvas>
+        <h2 id="r-title" class="r-title">Pick a station</h2>
+        <p id="r-meta" class="lcd-text"></p>
+        <div class="r-progress" aria-hidden="true"><div id="r-bar"></div></div>
+        <div class="screen-meta"><span id="r-time" class="lcd-text">0:00 / 0:00</span><span id="r-next" class="lcd-text dim"></span></div>
+      </div>
+      <div class="big-actions">
+        <button id="r-play" class="btn dice" disabled><span class="ico" aria-hidden="true">▶</span> <span class="lbl">Tune in</span></button>
+        <button id="r-skip" class="btn" disabled>⏭ Next song</button>
+        <button id="r-keep" class="btn ghost" disabled>Open this song in the composer →</button>
+        <button id="r-link" class="btn ghost" disabled>Copy this song's link</button>
+        <p class="help">Every song is brand new, written as you listen. On iPhone it keeps playing with the screen locked, and the lock screen shows the song with play, pause and next.</p>
+      </div>
+    </section>
+    <section class="panel stations" id="stations" aria-label="Stations"></section>
+  </main>
+
   <footer class="foot">
-    <span>Tom is free and open source (MIT) · everything renders in your browser · music you make is yours, royalty-free.</span>
+    <span>Tom is free and open source (MIT) · everything renders in your browser, even offline (add it to your Home Screen) · music you make is yours, royalty-free.</span>
     <a href="https://github.com/blaineam/Tom">GitHub</a>
   </footer>
 </div>
