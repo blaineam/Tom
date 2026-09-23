@@ -1,7 +1,7 @@
 // Tom — web music machine. Melody Machine + Lego-style Composer, both driven
 // by the same engine as the CLI (rendered in a Web Worker).
 import { STYLES } from './lib/styles.mjs';
-import { SCALES, CONTOUR_NAMES, chord, parseKey, noteName, parseProgression, layoutChords } from './lib/theory.mjs';
+import { SCALES, CONTOUR_NAMES, chord, parseKey, noteName, spell, parseProgression, layoutChords } from './lib/theory.mjs';
 import {
   BLOCK_TYPES, BLOCK_ORDER, DRUM_LEVELS, FORMS, makeBlock, emptySong, autoSong, autoFill, autoBlock,
   melodySong, validate,
@@ -159,7 +159,7 @@ function renderMelodyControls() {
   segmented($('#m-drums'), ['none', 'light', 'half', 'full'].map((d) => [d, d]), m.drums, (v) => set({ drums: v }));
   $('#m-seed').value = showTag(m.seed);
   const bp = melodyBlueprint(), r = resolve(bp);
-  $('#meta-line').textContent = `${STYLES[m.style].name.toUpperCase()} · ${noteName(r.root).replace(/-?\d+$/, '')} ${m.mode} · ${Math.round(r.bpm)} BPM · ${m.bars} BARS · ${showTag(m.seed)}`;
+  $('#meta-line').textContent = `${STYLES[m.style].name.toUpperCase()} · ${spell(r.root, r.root, r.scale)} ${m.mode} · ${Math.round(r.bpm)} BPM · ${m.bars} BARS · ${showTag(m.seed)}`;
   updateClock(position());
 }
 function set(patch) { Object.assign(state.melody, patch); changedMelody(); }
@@ -177,7 +177,7 @@ function changedMelody() {
 function chordLabel(root, S, degree) {
   const ch = chord(root, S, degree);
   const third = (ch[1] - ch[0] + 12) % 12, fifth = (ch[2] - ch[0] + 12) % 12;
-  return noteName(ch[0]).replace(/-?\d+$/, '') + (fifth === 6 ? '°' : third === 3 ? 'm' : '');
+  return spell(ch[0], root, S) + (fifth === 6 ? '°' : third === 3 ? 'm' : '');
 }
 
 function drawRoll(t = null) {
