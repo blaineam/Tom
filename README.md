@@ -31,7 +31,7 @@ Press **🎲 New melody** and you get one. Then dial it in:
 
 | Dial | What it does |
 |---|---|
-| **Style** | Synthwave, Bright Pop, Chiptune, Lo-fi, Marimba, Jazz, Orchestral, Hip-Hop, Rock, Reggae, EDM |
+| **Style** | Synthwave, Bright Pop, Chiptune, Lo-fi, Marimba, Jazz, Orchestral, Hip-Hop, Rock, Reggae, EDM, Country, Funk |
 | **Key · Mode · Tempo** | Any key; major, minor, dorian, mixolydian, pentatonic |
 | **Bars** | 4, 8 or 16 |
 | **Busy-ness** | Sparse and singable ↔ quick and chatty |
@@ -121,6 +121,8 @@ Common flags: `--style`, `--seed` (any word or `#hashtag`), `--key` (e.g. `A`, `
 | **Rock** | Distorted power chords (palm-muted chugs in verses, open ringing chords in choruses), driving picked bass, a roomy kit with a tom fill every fourth bar, an overdriven lead guitar on the melody |
 | **Reggae** | One-drop drums (nothing on the one; kick and rimshot together on three), guitar skank on 2 and 4, organ bubble on the off-beats, a deep dub bass that leaves space, a melodica lead through dub echo |
 | **EDM** | Four-on-the-floor kick, claps and off-beat open hats, hard-pumping sidechained supersaw chords, an off-beat house bassline, 16th-note saw-pluck arps, a supersaw lead, and builds that roll and rise into the drop |
+| **Country** | Boom-chick: bass alternating root and fifth on 1 and 3 (walking up into each chord change) with an acoustic strum on 2 and 4, a brushed two-step, banjo forward rolls, a pedal-steel melody that swells and slides into its notes, and a fiddle |
+| **Funk** | A syncopated 16th-note groove with snare ghost notes and an open hat on the "and" of 4, slap bass that pops the octave and leans on the flat seven, chicken-scratch guitar on 9th chords, keys in the verses, horn-section stabs in the choruses, and a brass lead |
 
 ## How it works
 
@@ -135,7 +137,7 @@ lib/
   dsp.mjs         oscillators, envelopes, filters, reverb, mix bus
   instruments.mjs drums, plucks, pads, leads, bass
   theory.mjs      scales, chords, progressions, the melody generator
-  styles.mjs      the sound palettes (synthwave, pop, chip, lofi, marimba, jazz, orchestral, hiphop, rock, reggae, edm)
+  styles.mjs      the sound palettes (synthwave, pop, chip, lofi, marimba, jazz, orchestral, hiphop, rock, reggae, edm, country, funk)
   blueprint.mjs   blocks, Auto song / finish / surprise, jingles, melodies
   arrange.mjs     blueprint → audio + note events
   share.mjs       hashtag seeds and share links

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 — 2026-09-22
+
+- **Country** style: boom-chick (bass alternating root and fifth on 1 and 3, walking up into each chord change; a strummed acoustic guitar on 2 and 4 with an up-strum on the "and" of 4), a brushed two-step kit, banjo forward rolls, a pedal-steel melody that swells in and slides up into its notes, and a fiddle counter-line, in G major at 112 BPM.
+- **Funk** style: a syncopated 16th groove (kick on 1, the "a" of 1, the "and" of 3 and the "e" of 4; snare on 2 and 4 with ghost notes; 16th hats with an open hat on the "and" of 4), slap bass that pops the octave and leans on the flat seven, chicken-scratch guitar on 9th chords with dead strokes between accents, keys in the verses and horn-section stabs in the choruses, and a brass lead, in E dorian at 104 BPM.
+- New instruments: acoustic strum, pedal steel, fiddle, slap bass, clavinet, brass, scratch guitar.
+- Existing links are unchanged (golden note-level test).
+
 ## 0.4.0 — 2026-09-22
 
 - **Reggae** style: one-drop drums (nothing on the one; kick and rimshot together on three, a turnaround every fourth bar), a muted guitar skank on 2 and 4, an organ bubble on every off-beat, a deep dub bass that alternates two breathing patterns, and a melodica lead through dub echo, in G major at 76 BPM.

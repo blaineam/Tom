@@ -252,3 +252,25 @@ test('edm: four on the floor with the bass on every off-beat, and a harder pump'
   assert.equal(bass.length, 16);
   assert.ok(bass.every((e) => frac(e) === 0.5));
 });
+
+test('country: boom-chick (bass root/fifth on 1 and 3, strum on 2 and 4)', () => {
+  const song = { ...emptySong('country'), blocks: [makeBlock('verse', { bars: 4, seed: 7, progression: '1-1-1-1' })] };
+  const { events, bpm } = render(song);
+  const beat = 60 / bpm, pos = (e) => (Math.round((e.t / beat) * 1000) / 1000) % 4;
+  const bass = events.filter((e) => e.track === 'bass');
+  assert.deepEqual([...new Set(bass.map(pos))].sort(), [0, 2]);
+  assert.equal(new Set(bass.map((e) => e.midi % 12)).size, 2, 'alternates root and fifth');
+  const downStrums = events.filter((e) => e.voice === 'strum' && Number.isInteger(pos(e)));
+  assert.deepEqual([...new Set(downStrums.map(pos))].sort(), [1, 3]);
+});
+
+test('funk: ghost notes, an open hat on the "and" of 4, and slap bass that pops the octave', () => {
+  const song = { ...emptySong('funk'), blocks: [makeBlock('verse', { bars: 2, seed: 8 })] };
+  const { events, bpm } = render(song);
+  const beat = 60 / bpm, pos = (e) => (Math.round((e.t / beat) * 1000) / 1000) % 4;
+  const snares = events.filter((e) => e.drum === 'snare');
+  assert.ok(snares.some((e) => e.vel < 0.3 && ![1, 3].includes(pos(e))), 'ghost notes');
+  assert.ok(events.some((e) => e.drum === 'hat' && e.open && pos(e) === 3.5));
+  const bass = events.filter((e) => e.track === 'bass').map((e) => e.midi);
+  assert.ok(bass.some((m) => bass.includes(m - 12)), 'octave pops');
+});
