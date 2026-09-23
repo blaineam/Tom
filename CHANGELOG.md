@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — 2026-09-22
+
+- **Reggae** style: one-drop drums (nothing on the one; kick and rimshot together on three, a turnaround every fourth bar), a muted guitar skank on 2 and 4, an organ bubble on every off-beat, a deep dub bass that alternates two breathing patterns, and a melodica lead through dub echo, in G major at 76 BPM.
+- **EDM** style: four-on-the-floor kick with claps, off-beat open hats and 16th shakers, supersaw chords pumping hard against the kick, an off-beat house bassline, 16th-note saw-pluck arps and a supersaw lead, in F minor at 126 BPM.
+- New instruments: rimshot, melodica, drawbar organ, skank chop, dub bass, saw pluck. MIDI maps the rimshot to GM side stick (37).
+- Styles can set their own sidechain depth (`pump`); older styles keep the original 0.65. Existing links are unchanged (golden note-level test).
+
 ## 0.3.0 — 2026-09-22
 
 - **Hip-Hop** style: boom-bap drums (kick on 1, the "and" of 2 and 3; snare layered with a clap on 2 and 4; swung hats with a ghost note), an 808 that slides into pitch and sustains from each kick to the next, dusty electric-piano chords with off-beat stabs, and a breathy flute hook, in C minor at 90 BPM.

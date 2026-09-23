@@ -231,3 +231,24 @@ test('rock: power chords, palm-muted verses, open choruses, tom fills every 4th 
   const fillBars = new Set(events.filter((e) => e.drum === 'tom').map((e) => Math.floor(e.t / bar + 1e-9) % 8));
   assert.deepEqual([...fillBars].sort(), [3, 7]);
 });
+
+test('reggae: one drop (nothing on 1; kick + rim on 3) and the skank on 2 and 4', () => {
+  const song = { ...emptySong('reggae'), blocks: [makeBlock('verse', { bars: 4, seed: 5 })] };
+  const { events, bpm } = render(song);
+  const beat = 60 / bpm, pos = (e) => (Math.round((e.t / beat) * 1000) / 1000) % 4;
+  const kicks = events.filter((e) => e.drum === 'kick').map(pos);
+  assert.ok(kicks.length === 4 && kicks.every((q) => q === 2), `kicks at ${kicks}`);
+  assert.deepEqual([...new Set(events.filter((e) => e.drum === 'rim').map(pos))], [2]);
+  assert.deepEqual([...new Set(events.filter((e) => e.voice === 'chop').map(pos))].sort(), [1, 3]);
+});
+
+test('edm: four on the floor with the bass on every off-beat, and a harder pump', () => {
+  const song = { ...emptySong('edm'), blocks: [makeBlock('chorus', { bars: 4, seed: 6 })] };
+  const { events, bpm } = render(song);
+  const beat = 60 / bpm, frac = (e) => (Math.round((e.t / beat) * 1000) / 1000) % 1;
+  assert.equal(events.filter((e) => e.drum === 'kick').length, 16);
+  assert.ok(events.filter((e) => e.drum === 'kick').every((e) => frac(e) === 0));
+  const bass = events.filter((e) => e.track === 'bass');
+  assert.equal(bass.length, 16);
+  assert.ok(bass.every((e) => frac(e) === 0.5));
+});
