@@ -1,0 +1,134 @@
+<p align="center">
+  <a href="https://tom.wemiller.com"><img src="web/gecko.svg" width="120" alt="Tom the gecko"></a>
+</p>
+
+<h1 align="center">Tom</h1>
+
+<p align="center">
+  <strong>A music machine. Dial in a melody in seconds, or snap a whole song together like Lego.</strong><br>
+  Seeded, parameterized, royalty-free. In your browser or on the command line.
+</p>
+
+<p align="center">
+  <a href="https://tom.wemiller.com"><strong>Open Tom</strong></a> &bull;
+  <a href="#the-web-app">Web app</a> &bull;
+  <a href="#the-cli">CLI</a> &bull;
+  <a href="#share-links-a-hashtag-is-a-song">Share links</a> &bull;
+  <a href="#how-it-works">How it works</a>
+</p>
+
+---
+
+Tom is named after the **tokay gecko**, one of the few lizards that sings (it's named after its own call: *"to-KAY!"*). Tom writes music on demand: a hook for a video, a loop for a game, a jingle that lands exactly on your end card, or a full three-minute song. Everything is generated from a **seed**, so the same seed and settings always produce the same music, byte for byte. And because Tom writes it all, what you make is yours to use: no samples, no licenses, no Content ID claims.
+
+## The web app
+
+**[tom.wemiller.com](https://tom.wemiller.com)** runs entirely in your browser. Nothing is uploaded.
+
+### Melody Machine
+
+Press **🎲 New melody** and you get one. Then dial it in:
+
+| Dial | What it does |
+|---|---|
+| **Style** | Synthwave, Bright Pop, Chiptune, Lo-fi, Marimba |
+| **Key · Mode · Tempo** | Any key; major, minor, dorian, mixolydian, pentatonic |
+| **Bars** | 4, 8 or 16 |
+| **Busy-ness** | Sparse and singable ↔ quick and chatty |
+| **Swing & syncopation** | On the beat ↔ pushing against it |
+| **Shape** | Arch, rise, fall, wave or flat: the overall contour of the line |
+| **Phrase form** | AABA, ABAB, AAAB, ABAC, ABCD: which bars repeat the hook |
+| **Register** | Low, mid or high |
+| **Chords · Backing · Drums** | Progression presets, chords and bass on/off, drum density |
+
+Turning a dial **keeps the seed**, so you're shaping *this* melody rather than getting a new one. The piano roll shows every note, and **Add to composer →** drops it into a song.
+
+### Composer
+
+Songs are built from **blocks**, like Lego bricks: **Intro, Verse, Build, Chorus, Break, Outro** and an **Ending** hit. Click or drag bricks onto the timeline and reorder them. Select a brick to shape it: length, chords, layers (chords, arp, bass, melody, counter-melody, bells, octave doubling, riser, crash), drum level, filter sweep, and the same melody dials.
+
+**✨ Auto** does the heavy lifting whenever you want:
+
+- **Build a whole song:** a full (~3 min), short (~1 min) or loop arrangement, with choruses that share one hook.
+- **Finish my song:** keeps what you've made and adds the rest of the arrangement, ending with a proper outro and final hit.
+- **Surprise me:** re-rolls just the selected block.
+- **Re-roll everything unlocked:** 🔒 **Lock** any block you love, and Auto will never touch it.
+
+**Export** gives you WAV audio, a **MIDI** file (one track per layer, General MIDI drums) for Logic, GarageBand or Ableton, or the song as JSON. Your work autosaves in the browser.
+
+## Share links: a hashtag is a song
+
+The seed lives in the URL, so **the link is the song**:
+
+```
+tom.wemiller.com/#sunset-drive                        a melody; the tag alone picks style, key, tempo and shape
+tom.wemiller.com/#sunset-drive&style=chip&busy=0.8    the same tag with a couple of dials turned
+tom.wemiller.com/#song:road-trip&length=short         a whole auto-built song from a tag
+tom.wemiller.com/#song=eyJ2ZXJzaW9uIjox…               an edited song, carried in full
+```
+
+Type any word after the `#` and Tom plays that song, the same one for everyone, every time. The address bar updates as you work, so copying it always copies exactly what you hear. Links list only the dials that differ from the tag's own recipe, so they stay short. The die rolls memorable tags like `#mellow-gecko-42`.
+
+The CLI reads the same links and prints one for every render, so a song moves between the browser and the terminal without changing a note.
+
+## The CLI
+
+Zero dependencies; Node 18 or newer. [ffmpeg](https://ffmpeg.org) is optional and adds `.m4a`/`.mp3` output plus loudness normalization (−14 LUFS by default).
+
+```sh
+git clone https://github.com/blaineam/Tom.git && cd Tom
+node tom.mjs help                 # or: ln -s "$PWD/bin/tom" /usr/local/bin/tom
+```
+
+```sh
+tom melody --seed '#sunset-drive' --out hook.wav --midi       # the same melody as the link above
+tom melody --style chip --density 0.8 --contour rise --form AAAB --bars 16
+tom song --seed road-trip --length short --out road-trip.m4a --blueprint
+tom jingle --style synthwave --length 9.1 --hit 6.75 --out bed.wav
+tom render 'https://tom.wemiller.com/#sunset-drive&busy=0.8'  # any share link
+tom render my-song.json                                       # a song saved from the composer
+tom compose                                                   # run the web app locally
+tom styles | tom doctor
+```
+
+| Command | Makes |
+|---|---|
+| `tom melody` | A melody over a backing loop. Every Melody Machine dial is a flag: `--bars --density --syncopation --contour --form --octave --progression --no-chords --no-bass --drums`. |
+| `tom song` | A whole auto-arranged song. `--length full\|short\|loop` |
+| `tom jingle` | A short bed whose final hit lands **exactly** at `--hit` seconds and rings out to `--length`. Tempo is solved so the hit falls on a bar line, which makes it ideal for video end cards. |
+| `tom render` | A composer song (`.json`), a share link, or a bare `#hashtag`. |
+| `tom compose` | Serves the web app at `http://127.0.0.1:5178`. |
+
+Common flags: `--style`, `--seed` (any word or `#hashtag`), `--key` (e.g. `A`, `F#`, `Eb`), `--mode`, `--bpm`, `--out`, `--midi [file]`, `--blueprint [file]`, `--loudness <LUFS>`.
+
+### With Monkr
+
+[Monkr](https://github.com/blaineam/Monkr) animates device mockups into video. When `tom` is installed, `monkr animate --music <style>` scores the clip with a Tom jingle whose final hit lands where you ask.
+
+## How it works
+
+- **Blueprints.** A song is a JSON list of blocks. Each block says *which* layers play and how its melody is shaped; each style says *how* those layers sound. The web app, the CLI and share links all produce the same blueprint for the same input.
+- **Melodies with memory.** A motif (a bar of rhythm plus a melodic shape) is invented for each letter of the phrase form, then replayed. That repetition is what makes a tune hummable instead of a random walk. The contour steers the line, strong beats land on chord tones, every leap is answered by a step back, there are no tritone leaps, and the phrase resolves to the tonic.
+- **Synthesis from scratch.** Band-limited oscillators, Karplus–Strong plucks, FM electric piano and bells, biquad filters, a Freeverb reverb, echo, kick-driven sidechain and a soft-clipping master bus, all in plain JavaScript on `Float32Array`s. The same code runs in Node and in a Web Worker in the browser.
+- **Deterministic.** Every random choice comes from a seeded generator, and each layer draws from its own forked stream, so changing one part never reshuffles another.
+
+```
+lib/
+  rng.mjs         seeded randomness (mulberry32, forkable streams)
+  dsp.mjs         oscillators, envelopes, filters, reverb, mix bus
+  instruments.mjs drums, plucks, pads, leads, bass
+  theory.mjs      scales, chords, progressions, the melody generator
+  styles.mjs      the five sound palettes
+  blueprint.mjs   blocks, Auto song / finish / surprise, jingles, melodies
+  arrange.mjs     blueprint → audio + note events
+  share.mjs       hashtag seeds and share links
+  wav.mjs midi.mjs  file writers
+web/              the web app (no build step)
+tom.mjs           the CLI
+```
+
+Run the tests with `npm test`.
+
+## License
+
+[MIT](LICENSE) © 2026 Blaine Miller. Music you make with Tom is yours.

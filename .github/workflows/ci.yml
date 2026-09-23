@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+      - name: CLI smoke
+        run: |
+          node tom.mjs styles
+          node tom.mjs song --style chip --seed 1 --length short --out /tmp/song.wav --midi --no-loudness
+          test -s /tmp/song.wav && test -s /tmp/song.mid

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tom — Music Machine</title>
+<meta name="description" content="Tom is a free music machine: dial in a melody in seconds, or snap song sections together like Lego bricks. Seeded, parameterized, royalty-free. Export WAV and MIDI.">
+<meta property="og:title" content="Tom — Music Machine">
+<meta property="og:description" content="Dial in a melody in seconds, or snap a whole song together like Lego bricks. Royalty-free, WAV + MIDI export.">
+<meta name="theme-color" content="#14161b">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="machine">
+  <header class="top">
+    <a class="brand" href="./" aria-label="Tom home">
+      <img class="gecko" src="gecko.svg" alt="" width="40" height="40">
+      <span class="wordmark">Tom</span>
+      <span class="sub">music machine</span>
+    </a>
+    <nav class="tabs" role="tablist" aria-label="Mode">
+      <button role="tab" id="tab-melody" aria-selected="true" aria-controls="view-melody">Melody Machine</button>
+      <button role="tab" id="tab-compose" aria-selected="false" aria-controls="view-compose">Composer</button>
+    </nav>
+    <div class="transport">
+      <button id="play" class="btn play" aria-label="Play"><span class="ico">▶</span><span class="lbl">Play</span></button>
+      <span class="lcd" id="clock" aria-live="off">0:00 / 0:00</span>
+      <div class="menu">
+        <button class="btn" id="export-btn" aria-haspopup="true" aria-expanded="false">Export ▾</button>
+        <div class="menu-list" id="export-menu" hidden>
+          <button data-export="wav">Audio (WAV)</button>
+          <button data-export="midi">MIDI (for Logic, GarageBand…)</button>
+          <button data-export="json">Song file (.json)</button>
+          <button data-export="link">Copy share link</button>
+          <label class="file-btn">Open song file…<input type="file" id="import" accept=".json,application/json"></label>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Melody Machine ─── -->
+  <main id="view-melody" role="tabpanel" aria-labelledby="tab-melody" class="view">
+    <section class="screen-wrap">
+      <div class="screen">
+        <canvas id="roll" aria-label="Piano roll of the current melody"></canvas>
+        <div class="screen-meta"><span id="meta-line" class="lcd-text"></span><span id="status" class="lcd-text dim"></span></div>
+      </div>
+      <div class="big-actions">
+        <button id="dice" class="btn dice" title="New melody (N)"><span class="die" aria-hidden="true">🎲</span> New melody</button>
+        <div class="seed">
+          <label for="m-seed">Seed</label>
+          <input id="m-seed" class="lcd-input" inputmode="numeric" autocomplete="off" aria-describedby="seed-help">
+        </div>
+        <p id="seed-help" class="help">Turning the dials keeps the same seed, so you shape <i>this</i> melody. Roll the die for a new one.</p>
+        <button id="to-composer" class="btn ghost">Add to composer →</button>
+      </div>
+    </section>
+
+    <section class="panel dials" aria-label="Melody dials">
+      <div class="dial wide"><span class="dial-label">Style</span><div class="seg" id="m-style"></div></div>
+      <div class="dial"><label class="dial-label" for="m-key">Key</label><select id="m-key"></select></div>
+      <div class="dial"><label class="dial-label" for="m-mode">Mode</label><select id="m-mode"></select></div>
+      <div class="dial"><label class="dial-label" for="m-bpm">Tempo <b id="m-bpm-v"></b></label><input type="range" id="m-bpm" min="60" max="170" step="1"></div>
+      <div class="dial"><span class="dial-label">Bars</span><div class="seg" id="m-bars"></div></div>
+      <div class="dial"><label class="dial-label" for="m-density">Busy-ness <b id="m-density-v"></b></label><input type="range" id="m-density" min="0" max="1" step="0.05"></div>
+      <div class="dial"><label class="dial-label" for="m-sync">Swing &amp; syncopation <b id="m-sync-v"></b></label><input type="range" id="m-sync" min="0" max="1" step="0.05"></div>
+      <div class="dial wide"><span class="dial-label">Shape</span><div class="seg" id="m-contour"></div></div>
+      <div class="dial"><span class="dial-label">Phrase form</span><div class="seg" id="m-form"></div></div>
+      <div class="dial"><span class="dial-label">Register</span><div class="seg" id="m-octave"></div></div>
+      <div class="dial"><label class="dial-label" for="m-prog">Chords</label><select id="m-prog"></select></div>
+      <div class="dial"><span class="dial-label">Backing</span><div class="seg" id="m-backing"></div></div>
+      <div class="dial"><span class="dial-label">Drums</span><div class="seg" id="m-drums"></div></div>
+    </section>
+  </main>
+
+  <!-- ─── Composer ─── -->
+  <main id="view-compose" role="tabpanel" aria-labelledby="tab-compose" class="view" hidden>
+    <section class="panel song-bar">
+      <input id="c-title" class="title-input" aria-label="Song title" maxlength="60">
+      <div class="seg" id="c-style" aria-label="Style"></div>
+      <label class="mini">Key <select id="c-key"></select></label>
+      <label class="mini">Mode <select id="c-mode"></select></label>
+      <label class="mini">BPM <input id="c-bpm" type="number" min="50" max="200" class="num"></label>
+      <span class="lcd-text" id="c-length"></span>
+    </section>
+
+    <section class="panel auto-bar" aria-label="Auto">
+      <span class="auto-label">✨ Auto</span>
+      <button class="btn" id="auto-song">Build a whole song</button>
+      <select id="auto-length" aria-label="Song length"><option value="full">full (~3 min)</option><option value="short">short (~1 min)</option><option value="loop">loop</option></select>
+      <button class="btn" id="auto-finish">Finish my song</button>
+      <button class="btn" id="auto-block">Surprise me (selected)</button>
+      <button class="btn" id="auto-all">Re-roll everything unlocked</button>
+      <button class="btn ghost" id="clear-song">Clear</button>
+    </section>
+
+    <section class="board">
+      <div class="palette" aria-label="Blocks — click or drag onto the timeline" id="palette"></div>
+      <div class="timeline-wrap">
+        <div class="timeline" id="timeline" aria-label="Song timeline"></div>
+        <div class="playhead" id="playhead" hidden></div>
+        <p class="empty" id="empty">Snap blocks together: click a brick above (or drag it here), or hit <b>✨ Build a whole song</b>.</p>
+      </div>
+    </section>
+
+    <section class="panel inspector" id="inspector" aria-label="Selected block"></section>
+  </main>
+
+  <footer class="foot">
+    <span>Tom is free and open source (MIT) · everything renders in your browser · music you make is yours, royalty-free.</span>
+    <a href="https://github.com/blaineam/Tom">GitHub</a>
+  </footer>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+node_modules/
+_site/
+*.wav
+*.mid
+*.m4a
+*.mp3
+.DS_Store
