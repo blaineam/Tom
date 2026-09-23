@@ -118,6 +118,7 @@ input[type="range"] { width: 100%; accent-color: var(--style); }
 .foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--faint); font-size: 13px; }
 .foot a { color: var(--muted); }
 
+.toast.update { display: flex; align-items: center; gap: 12px; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--edge); padding: 10px 16px; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.5); z-index: 50; }
 
 @media (max-width: 760px) {

@@ -410,7 +410,7 @@ async function doExport(kind) {
 
 function syncHash() {
   const hash = state.view === 'melody' ? melodyHash(state.melody) : songHash(state.song);
-  if (location.hash !== hash) history.replaceState(null, '', `${location.pathname}${hash}`);
+  if (location.hash !== hash || location.search) history.replaceState(null, '', `${location.pathname}${hash}`); // also drops ?v= left by an update
 }
 function loadFromHash() {
   if (!location.hash || location.hash === '#') return false;
@@ -500,8 +500,23 @@ document.addEventListener('keydown', (e) => {
 });
 window.addEventListener('resize', () => drawRoll(playing ? position() : null));
 
+// When a newer Tom is deployed while this page is cached, offer it.
+async function checkForUpdate() {
+  const mine = new URL(import.meta.url).searchParams.get('v');
+  if (!mine) return; // local/dev builds aren't stamped
+  try {
+    const html = await fetch(location.pathname, { cache: 'no-store' }).then((r) => r.text());
+    const latest = (html.match(/app\.js\?v=([\w-]+)/) || [])[1];
+    if (!latest || latest === mine) return;
+    const bar = h('div', { class: 'toast update', role: 'status' }, 'A new version of Tom is here. ',
+      h('button', { class: 'btn', type: 'button', on: { click: () => { syncHash(); location.href = `${location.pathname}?v=${latest}${location.hash}`; } } }, 'Update'));
+    document.body.append(bar);
+  } catch { /* offline: keep playing */ }
+}
+
 loadFromHash();
 switchView(state.view);
+checkForUpdate();
 // Paste any #hashtag into the address bar and Tom plays that song.
 window.addEventListener('hashchange', () => {
   const before = state.view === 'melody' ? melodyHash(state.melody) : songHash(state.song);
