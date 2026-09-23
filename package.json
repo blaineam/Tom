@@ -1,6 +1,6 @@
 {
   "name": "tom-music",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "🦎 Tom — a music machine. Seeded, parameterized, royalty-free melodies and songs, from the CLI or a Lego-style web composer.",
   "type": "module",
   "bin": { "tom": "./tom.mjs" },

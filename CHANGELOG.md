@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 — 2026-09-22
+
+- **Hip-Hop** style: boom-bap drums (kick on 1, the "and" of 2 and 3; snare layered with a clap on 2 and 4; swung hats with a ghost note), an 808 that slides into pitch and sustains from each kick to the next, dusty electric-piano chords with off-beat stabs, and a breathy flute hook, in C minor at 90 BPM.
+- **Rock** style: distorted power chords (root–fifth–octave, since thirds turn to mud under distortion) that chug palm-muted in quiet sections and ring open in choruses, a driving eighth-note bass, a roomy kit with a tom fill every fourth bar, and an overdriven lead guitar on the melody, in E major at 124 BPM.
+- New instruments: 808, flute, rhythm guitar, lead guitar, toms. MIDI maps toms to GM 47.
+- Existing links are unchanged: the golden note-level test passes against 0.1.0.
+
 ## 0.2.0 — 2026-09-22
 
 - **Jazz** style: walking upright bass (roots on the downbeat, chord tones between, a chromatic step into every next chord), swung ride with hi-hat on 2 and 4 and brush ghost notes, rootless 3-5-7-9 piano voicings in a Charleston comp, and a swung vibraphone melody over ii–V–I changes.

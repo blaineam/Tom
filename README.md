@@ -31,7 +31,7 @@ Press **🎲 New melody** and you get one. Then dial it in:
 
 | Dial | What it does |
 |---|---|
-| **Style** | Synthwave, Bright Pop, Chiptune, Lo-fi, Marimba, Jazz, Orchestral |
+| **Style** | Synthwave, Bright Pop, Chiptune, Lo-fi, Marimba, Jazz, Orchestral, Hip-Hop, Rock |
 | **Key · Mode · Tempo** | Any key; major, minor, dorian, mixolydian, pentatonic |
 | **Bars** | 4, 8 or 16 |
 | **Busy-ness** | Sparse and singable ↔ quick and chatty |
@@ -117,6 +117,8 @@ Common flags: `--style`, `--seed` (any word or `#hashtag`), `--key` (e.g. `A`, `
 | **Marimba** | Warm marimba melody, shaker, soft pad |
 | **Jazz** | Walking upright bass that steps chromatically into each chord, swung ride and brushes, rootless piano comping, vibraphone melody over ii–V–I changes |
 | **Orchestral** | Swelling divided strings, french-horn melody, pizzicato, low strings, timpani tuned to the key (and timpani rolls into each chorus), concert-hall reverb |
+| **Hip-Hop** | Boom-bap drums with swung hats and ghost notes, snare layered with a clap, an 808 that slides into pitch and lands with every kick, dusty electric-piano chords, a breathy flute hook |
+| **Rock** | Distorted power chords (palm-muted chugs in verses, open ringing chords in choruses), driving picked bass, a roomy kit with a tom fill every fourth bar, an overdriven lead guitar on the melody |
 
 ## How it works
 
@@ -131,7 +133,7 @@ lib/
   dsp.mjs         oscillators, envelopes, filters, reverb, mix bus
   instruments.mjs drums, plucks, pads, leads, bass
   theory.mjs      scales, chords, progressions, the melody generator
-  styles.mjs      the sound palettes (synthwave, pop, chip, lofi, marimba, jazz, orchestral)
+  styles.mjs      the sound palettes (synthwave, pop, chip, lofi, marimba, jazz, orchestral, hiphop, rock)
   blueprint.mjs   blocks, Auto song / finish / surprise, jingles, melodies
   arrange.mjs     blueprint → audio + note events
   share.mjs       hashtag seeds and share links

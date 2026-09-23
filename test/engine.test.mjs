@@ -208,3 +208,26 @@ test('orchestral builds roll on timpani, not snare', () => {
   assert.ok(events.some((e) => e.track === 'timpani'));
   assert.ok(!events.some((e) => e.drum === 'snare'));
 });
+
+test('hip-hop: the 808 lands with the kick', () => {
+  const song = { ...emptySong('hiphop'), blocks: [makeBlock('chorus', { bars: 4, seed: 2 })] };
+  const { events } = render(song);
+  const kicks = new Set(events.filter((e) => e.drum === 'kick').map((e) => e.t.toFixed(6)));
+  const bass = events.filter((e) => e.track === 'bass');
+  assert.ok(bass.length >= 12);
+  for (const b of bass) assert.ok(kicks.has(b.t.toFixed(6)), `808 at ${b.t} without a kick`);
+});
+
+test('rock: power chords, palm-muted verses, open choruses, tom fills every 4th bar', () => {
+  const song = { ...emptySong('rock'), blocks: [makeBlock('verse', { bars: 8, seed: 3 }), makeBlock('chorus', { bars: 8, seed: 4 })] };
+  const { events, bpm } = render(song);
+  const bar = (60 / bpm) * 4;
+  const guitar = events.filter((e) => e.voice === 'guitar');
+  const byTime = new Map();
+  for (const g of guitar) byTime.set(g.t, [...(byTime.get(g.t) || []), g.midi].sort((a, b) => a - b));
+  for (const notes of byTime.values()) assert.deepEqual(notes.map((n) => n - notes[0]), [0, 7, 12]);
+  const verseHits = guitar.filter((g) => g.t < 8 * bar).length, chorusHits = guitar.filter((g) => g.t >= 8 * bar).length;
+  assert.ok(verseHits > chorusHits * 3, `verse chugs ${verseHits} vs chorus strums ${chorusHits}`);
+  const fillBars = new Set(events.filter((e) => e.drum === 'tom').map((e) => Math.floor(e.t / bar + 1e-9) % 8));
+  assert.deepEqual([...fillBars].sort(), [3, 7]);
+});
