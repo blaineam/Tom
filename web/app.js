@@ -12,7 +12,10 @@ import { encodeWav } from './lib/wav.mjs';
 import { toMidi } from './lib/midi.mjs';
 import { tagOf, randomTag, melodyFromTag, melodyHash, songHash, songFromTag, decodeShare } from './lib/share.mjs';
 import { STATIONS, MIX, stationName } from './lib/radio.mjs';
-import { createRadio } from './radio.js';
+import { createRadio, radioLog, radioLogText, clearRadioLog } from './radio.js';
+
+export const VERSION = '0.8.1';
+const BUILD = new URL(import.meta.url).searchParams.get('v'); // the deploy's commit, stamped by scripts/stamp.mjs
 
 const $ = (s, el = document) => el.querySelector(s);
 const h = (tag, attrs = {}, ...kids) => {
@@ -571,6 +574,13 @@ $('#r-link').addEventListener('click', () => { const t = radio.state.current; if
 $('#r-shortcut').addEventListener('click', () => { if (state.station) copyLink(`${location.origin}${location.pathname}${radioHash()}&play`, `${stationName(state.station)} Radio start link`); });
 // A start link (…&play) can't make sound until the first tap, so any tap counts.
 $('#r-tap').addEventListener('click', () => radio.resume());
+// Diagnostics: the radio's own log (kept across reloads), for bug reports.
+const showLog = () => { $('#r-log').textContent = radioLogText() || '(empty)'; };
+$('#r-diag').addEventListener('toggle', showLog);
+$('#r-log-copy').addEventListener('click', () => copyLink(`Tom ${VERSION} (${BUILD || 'dev'})\n${radioLogText()}`, 'Diagnostics'));
+$('#r-log-clear').addEventListener('click', () => { clearRadioLog(); showLog(); });
+$('#version').textContent = `v${VERSION}${BUILD ? ` · ${BUILD}` : ''}`;
+radioLog('Tom', VERSION, BUILD || 'dev');
 document.addEventListener('pointerdown', (e) => { if (!$('#r-tap').hidden && !e.target.closest('#r-tap')) radio.resume(); }, true);
 // Siri / Shortcuts / CarPlay: a start link can also be resumed from the lock screen.
 
@@ -723,18 +733,27 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('resize', () => { drawRoll(playing ? position() : null); drawRadio(); });
 
 // When a newer Tom is deployed while this page is cached, offer it.
+// iOS keeps a tab or Home Screen app alive for days without reloading it, so
+// this runs at load, whenever Tom comes back on screen, and every 30 minutes.
+// Nothing playing: it just reloads into the new version (everything is saved).
+let offered = false;
 async function checkForUpdate() {
-  const mine = new URL(import.meta.url).searchParams.get('v');
-  if (!mine) return; // local/dev builds aren't stamped
+  const mine = BUILD;
+  if (!mine || offered) return; // local/dev builds aren't stamped
   try {
     const html = await fetch(location.pathname, { cache: 'no-store' }).then((r) => r.text());
     const latest = (html.match(/app\.js\?v=([\w-]+)/) || [])[1];
     if (!latest || latest === mine) return;
+    const go = () => { syncHash(); location.href = `${location.pathname}?v=${latest}${location.hash}`; };
+    if (!playing && !loading && !radio.active) return go();
+    offered = true;
     const bar = h('div', { class: 'toast update', role: 'status' }, 'A new version of Tom is here. ',
-      h('button', { class: 'btn', type: 'button', on: { click: () => { syncHash(); location.href = `${location.pathname}?v=${latest}${location.hash}`; } } }, 'Update'));
+      h('button', { class: 'btn', type: 'button', on: { click: go } }, 'Update'));
     document.body.append(bar);
   } catch { /* offline: keep playing */ }
 }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+setInterval(checkForUpdate, 30 * 60e3);
 
 // Offline: a service worker caches the app (it all renders on the device anyway).
 if ('serviceWorker' in navigator && isSecureContext) {

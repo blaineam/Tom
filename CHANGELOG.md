@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1 — 2026-09-23
+
+- **Radio no longer stops after one song when the audio ends a hair early.** iOS fires `pause` just before `ended`, and Radio treated that pause as you pausing unless the element already reported `ended`. If the decoder stopped slightly short of the duration it reported (which depends on each song's exact length), Radio stopped the station and ignored the `ended` that followed. Now only a pause you ask for stops the station, and a watchdog moves on from a song that's sitting at its end without `ended`.
+- **Tom updates itself.** iOS keeps a Safari tab or Home Screen app open for days without reloading it, so it could keep running an old version. Tom now checks for a new version whenever it comes back on screen (and every 30 minutes). If nothing is playing it reloads into the new version on its own (your work is saved); otherwise it offers an Update button. The footer shows the version and build.
+- **Radio diagnostics** (under the stations): a log of what the player did (songs written, played, ended, paused, and by whom), kept across reloads, with a Copy button for bug reports.
+- The lock screen artwork is the app icon, served as a plain URL (the generated image showed as a grey square).
+- Next no longer pauses the old song before switching.
+
 ## 0.8.0 — 2026-09-23
 
 - **Pick the styles in the Mix.** Choose Mix and toggle styles on or off; the song playing finishes, then the Mix plays only what you picked (still never the same style twice in a row). Links carry it: `#radio:mix&styles=jazz,funk`.

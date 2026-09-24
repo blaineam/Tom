@@ -356,3 +356,8 @@ test('radio: a mix limited to some styles plays only those, still without back-t
   assert.ok(Array.from({ length: 5 }, (_, n) => radioTrack(MIX, 'one', n, { styles: ['reggae'] }).style).every((s) => s === 'reggae'));
   assert.equal(radioTrack(MIX, 'all', 3, { styles: [] }).style, radioTrack(MIX, 'all', 3).style, 'empty means every style');
 });
+
+test('the web app shows the same version as package.json', () => {
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  assert.match(readFileSync(join(ROOT, 'web/app.js'), 'utf8'), new RegExp(`export const VERSION = '${pkg.version.replace(/\./g, '\\.')}'`));
+});

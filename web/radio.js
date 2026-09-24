@@ -27,7 +27,26 @@ const RETRIES = 2;
 const BACK_KEPT = 1;          // previous songs kept rendered, for an instant Previous
 const RESTART_AFTER = 4;      // seconds into a song after which Previous restarts it
 const SILENCE = URL.createObjectURL(new Blob([encodeWav(new Float32Array(44100), new Float32Array(44100), 44100)], { type: 'audio/wav' }));
+const ICON = new URL('./icon-512.png', import.meta.url).href;
 const cancelled = (why) => Object.assign(new Error(why), { cancelled: true });
+
+// A small diagnostics log, kept in localStorage so it survives iOS reloading
+// the page. Settings → "Radio diagnostics" shows it for bug reports.
+const LOG_KEY = 'tom:radio-log', LOG_MAX = 200;
+let logLines = (() => { try { return JSON.parse(localStorage.getItem(LOG_KEY)) || []; } catch { return []; } })();
+let logTimer = 0;
+export function radioLog(...parts) {
+  const line = `${new Date().toISOString().slice(11, 19)} ${parts.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ')}`;
+  logLines.push(line);
+  if (logLines.length > LOG_MAX) logLines = logLines.slice(-LOG_MAX);
+  clearTimeout(logTimer);
+  logTimer = setTimeout(() => { try { localStorage.setItem(LOG_KEY, JSON.stringify(logLines)); } catch { /* full or private */ } }, 250);
+}
+export const radioLogText = () => logLines.join('\n');
+export function clearRadioLog() { logLines = []; try { localStorage.removeItem(LOG_KEY); } catch { /* private mode */ } }
+radioLog('page loaded', navigator.userAgent.replace(/^.*?\(/, '(').slice(0, 80), window.matchMedia?.('(display-mode: standalone)').matches ? 'home-screen app' : 'browser');
+document.addEventListener('visibilitychange', () => radioLog('page', document.visibilityState));
+
 
 export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   const audio = new Audio();
@@ -40,7 +59,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   function spawn() {
     worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
     worker.onmessage = (e) => { const p = pending.get(e.data.id); if (!p) return; pending.delete(e.data.id); e.data.ok ? p.resolve(e.data) : p.reject(new Error(e.data.error)); };
-    worker.onerror = (e) => { e.preventDefault?.(); resetWorker(new Error(e.message || 'The renderer stopped')); };
+    worker.onerror = (e) => { e.preventDefault?.(); radioLog('renderer error', e.message || ''); resetWorker(new Error(e.message || 'The renderer stopped')); };
   }
   /** Drop the worker (and whatever it was doing); the next render starts a fresh one. */
   function resetWorker(err = cancelled('cancelled')) {
@@ -54,6 +73,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { if (pending.has(id)) resetWorker(new Error('The renderer stalled')); }, RENDER_TIMEOUT);
       pending.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
+      radioLog('writing', bp.title);
       worker.postMessage({ id, bp, wav: true });
     });
   }
@@ -67,6 +87,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   let waiting = false;  // a song should be playing but none is ready yet
   let back = [];        // songs already played, newest last (only the last BACK_KEPT keep their audio)
   let oneOff = 0;       // bumps for each song asked for by name (history, Previous)
+  let userPaused = false; // only a pause the listener asked for stops the station
 
   const prepare = (n, g) => renderTrack(radioTrack(s.station, s.seed, n, { styles: s.styles }), n, g);
   async function renderTrack(song, n, g) {
@@ -77,6 +98,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
         return { n, song, title: trackTitle(song), url: URL.createObjectURL(new Blob([r.wav], { type: 'audio/wav' })), duration: r.duration, notes: r.notes };
       } catch (e) {
         if (e.cancelled || g !== gen || attempt >= RETRIES) throw e;
+        radioLog('retrying song', n + 1, e.message);
         console.warn(`Radio: retrying song ${n + 1} (${e.message})`);
       }
     }
@@ -115,9 +137,10 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     const old = s.current;
     waiting = false;
     s.current = track; s.upcoming = ready[0] ?? null; s.status = 'playing'; s.error = null; s.played++;
-    audio.loop = false;
+    audio.loop = false; userPaused = false;
     audio.src = track.url;
-    audio.play().catch((e) => { if (s.current === track) blocked(e); });
+    radioLog('play', track.title, `${Math.round(track.duration)}s`, `${ready.length} ready`);
+    audio.play().then(() => radioLog('playing', track.title), (e) => { radioLog('play refused', e.name); if (s.current === track) blocked(e); });
     if (retireOld && old !== track) retire(old);
     updateSession();
     onTrack(track);
@@ -129,7 +152,8 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   function holdWithSilence() {
     audio.loop = true;
     audio.src = SILENCE;
-    audio.play().catch(() => {});
+    radioLog('holding with silence');
+    audio.play().catch((e) => radioLog('silence refused', e.name));
   }
 
   /** On to the next song: at once if it's ready, otherwise as soon as it is. */
@@ -143,6 +167,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     onChange();
   }
   function fail(e) {
+    radioLog('failed', e.message || String(e));
     console.error(e);
     waiting = false;
     if (!s.current) { audio.loop = false; audio.pause(); }
@@ -150,39 +175,44 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     onChange();
   }
 
-  audio.addEventListener('ended', () => { if (s.status === 'playing' && !audio.loop) advance(); });
-  audio.addEventListener('pause', () => { if (s.status === 'playing' && audio.paused && !audio.ended) { s.status = 'paused'; onChange(); } });
-  audio.addEventListener('play', () => { if (s.current && s.status === 'paused') { s.status = 'playing'; onChange(); } });
+  // Song changes. iOS fires `pause` just before `ended`, and a decoder can stop a
+  // hair before the duration it reported, so `ended` may be false in that
+  // pause. So: only a pause the listener asked for (userPaused) stops the
+  // station, and a song sitting at its end moves on even without `ended`.
+  const nearEnd = () => s.current && audio.duration > 0 && audio.duration - audio.currentTime < 1.5;
+  audio.addEventListener('ended', () => {
+    radioLog('ended', s.current?.title ?? '(silence)', s.status, userPaused ? 'user-paused' : '');
+    if (!userPaused && !audio.loop && s.current) advance();
+  });
+  audio.addEventListener('pause', () => {
+    if (userPaused || audio.loop || audio.ended || nearEnd()) return;
+    radioLog('paused by the system', s.current?.title ?? '', Math.round(audio.currentTime));
+    if (s.status === 'playing') { s.status = 'paused'; onChange(); } // an interruption (a call, Siri)
+  });
+  audio.addEventListener('play', () => { if (s.current && s.status === 'paused') { userPaused = false; s.status = 'playing'; onChange(); } });
+  audio.addEventListener('error', () => radioLog('audio error', audio.error?.code ?? '', audio.error?.message ?? ''));
+  audio.addEventListener('stalled', () => radioLog('stalled', Math.round(audio.currentTime)));
+  // Watchdog: a song stopped at (or stuck at) its end without `ended` still moves on.
+  let lastT = -1, stuck = 0;
+  setInterval(() => {
+    if (!s.current || userPaused || audio.loop || s.status === 'tuning') { stuck = 0; return; }
+    const t = audio.currentTime;
+    stuck = nearEnd() && (audio.paused || t === lastT) ? stuck + 1 : 0;
+    lastT = t;
+    if (stuck >= 2) { radioLog('watchdog: stuck at the end of', s.current.title); stuck = 0; advance(); }
+  }, 1000);
   audio.addEventListener('loadedmetadata', positionState);
   audio.addEventListener('seeked', positionState);
 
   // ─── lock screen / Control Center ───
-  const art = new Map();
-  function artwork(style) {
-    if (!art.has(style)) art.set(style, new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const cv = document.createElement('canvas'); cv.width = cv.height = 512;
-        const g = cv.getContext('2d'), color = style === MIX ? '#ffd23f' : STYLES[style].color;
-        const grad = g.createLinearGradient(0, 0, 512, 512); grad.addColorStop(0, color); grad.addColorStop(1, '#14161b');
-        g.fillStyle = grad; g.fillRect(0, 0, 512, 512);
-        g.drawImage(img, 96, 96, 320, 320);
-        resolve(cv.toDataURL('image/png'));
-      };
-      img.onerror = () => resolve(null);
-      img.src = new URL('./gecko.svg', import.meta.url).href;
-    }));
-    return art.get(style);
-  }
-  async function updateSession() {
+  function updateSession() {
     if (!('mediaSession' in navigator) || !s.station) return;
-    const t = s.current, g = gen, artist = `Tom · ${stationName(s.station)} Radio`;
+    const t = s.current, artist = `Tom · ${stationName(s.station)} Radio`;
     const meta = t
       ? { title: t.title, artist, album: `${STYLES[t.song.style].name} · ${t.song.key} ${t.song.mode} · ${Math.round(t.song.bpm)} BPM` }
       : { title: 'Writing the next song…', artist, album: '' };
-    navigator.mediaSession.metadata = new MediaMetadata(meta);
-    const src = await artwork(t ? t.song.style : s.station);
-    if (src && g === gen && s.current === t) navigator.mediaSession.metadata = new MediaMetadata({ ...meta, artwork: [{ src, sizes: '512x512', type: 'image/png' }] });
+    // Artwork as a plain same-origin URL: the lock screen showed a grey square for a generated data: image.
+    navigator.mediaSession.metadata = new MediaMetadata({ ...meta, artwork: [{ src: ICON, sizes: '512x512', type: 'image/png' }] });
   }
   function positionState() {
     if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState || !s.current || !(audio.duration > 0) || audio.loop) return;
@@ -216,7 +246,8 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   }
 
   function tune(station, { seed = Math.random().toString(36).slice(2, 8), styles = null } = {}) {
-    gen++;
+    gen++; userPaused = false;
+    radioLog('tune', station, styles ? styles.join(',') : '');
     resetWorker();
     clearQueue();
     Object.assign(s, { station, seed, styles, current: null, upcoming: null, status: 'tuning', error: null, played: 0 });
@@ -227,12 +258,16 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     onChange();
   }
   function pause() {
+    userPaused = true;
+    radioLog('paused by the listener');
     if (s.status === 'tuning') { waiting = false; audio.loop = false; audio.pause(); s.status = 'paused'; onChange(); return; }
     if (s.status !== 'playing') return;
     audio.pause(); s.status = 'paused'; onChange();
   }
   function resume() {
     if (!s.station) return;
+    userPaused = false;
+    radioLog('resume');
     if (s.current) { unlock(); s.status = 'playing'; s.error = null; audio.play().catch(blocked); onChange(); return; }
     // Between songs (or after a failed render): pick up where the queue is.
     unlock();
@@ -242,7 +277,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     fill();
     onChange();
   }
-  function skip() { if (s.current) { oneOff++; audio.pause(); advance(); } }
+  function skip() { if (s.current) { oneOff++; radioLog('next'); advance(); } }
 
   /** Previous: restart this song, or (in its first seconds) go back one. Next then returns to it. */
   function previous() {

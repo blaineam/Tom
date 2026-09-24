@@ -163,12 +163,18 @@
         <li>Once it's playing, it shows up in <b>Now Playing</b> on the lock screen and in CarPlay, with pause, next and previous on the car's screen and steering-wheel buttons.</li>
       </ol>
     </details>
+    <details class="panel shortcut" id="r-diag">
+      <summary>Radio diagnostics</summary>
+      <p class="help">If Radio ever stops between songs, copy this and send it along: it shows what the player did and why. It stays on this device.</p>
+      <pre id="r-log" class="r-log"></pre>
+      <div class="r-row"><button id="r-log-copy" class="btn" type="button">Copy log</button><button id="r-log-clear" class="btn ghost" type="button">Clear</button></div>
+    </details>
     <button id="r-tap" class="r-tap" type="button" hidden>▶ Tap anywhere to start</button>
   </main>
 
   <footer class="foot">
     <span>Tom is free and open source (MIT) · everything renders in your browser, even offline (add it to your Home Screen) · music you make is yours, royalty-free.</span>
-    <a href="https://github.com/blaineam/Tom">GitHub</a>
+    <span><span id="version"></span> · <a href="https://github.com/blaineam/Tom">GitHub</a></span>
   </footer>
 </div>
 
