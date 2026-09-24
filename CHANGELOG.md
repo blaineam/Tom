@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-09-23
+
+- **Pick the styles in the Mix.** Choose Mix and toggle styles on or off; the song playing finishes, then the Mix plays only what you picked (still never the same style twice in a row). Links carry it: `#radio:mix&styles=jazz,funk`.
+- **Previous and next on the lock screen and in CarPlay**, instead of ±10 s. iOS shows the skip buttons unless a page clears them explicitly, which Radio now does. Previous restarts a song past its first few seconds, and otherwise goes back to the last one (instantly: it stays rendered). Next then returns to where you were. There's a ⏮ button in the app too (and the `p` key).
+- **Songs you've heard.** Every song Radio plays is listed under the stations, with Recent and ☆ Saved. Play any of them again, save it (from the list or with **☆ Save this song**), open it in the composer, or copy its link. The last 200 are kept, and saved songs stay forever, all on your device.
+- **Radio remembers your settings**: station, the Mix's styles and the history list, between visits.
+- **Start a station from Siri, a Shortcut or CarPlay.** Add `&play` to a station link (`#radio:jazz&play`; **Copy start link** under the stations) and use it in a Shortcut's **Open URLs** action. Tom opens and writes the first song. iOS needs one tap before a page can make sound, so the whole screen becomes a big "Tap anywhere to start" button (play on the lock screen works too). After that it's in Now Playing, including in CarPlay.
+
 ## 0.7.0 — 2026-09-23
 
 - **Radio keeps going with the screen locked.** A station that had started one song could stall at the next on a locked iPhone: the next song hadn't finished rendering before the lock, the page went quiet when the song ended, and iOS wouldn't let it start the next one. Now:

@@ -347,3 +347,12 @@ test('varied songs render cleanly in every style', () => {
     assert.ok(peak > 0.1 && peak <= 0.9, `${style}: peak ${peak}`);
   }
 });
+
+test('radio: a mix limited to some styles plays only those, still without back-to-back repeats', () => {
+  const pick = ['jazz', 'funk', 'rock'];
+  const styles = Array.from({ length: 12 }, (_, n) => radioTrack(MIX, 'subset', n, { styles: pick }).style);
+  assert.deepEqual([...new Set(styles)].sort(), [...pick].sort());
+  for (let n = 1; n < styles.length; n++) assert.notEqual(styles[n], styles[n - 1]);
+  assert.ok(Array.from({ length: 5 }, (_, n) => radioTrack(MIX, 'one', n, { styles: ['reggae'] }).style).every((s) => s === 'reggae'));
+  assert.equal(radioTrack(MIX, 'all', 3, { styles: [] }).style, radioTrack(MIX, 'all', 3).style, 'empty means every style');
+});

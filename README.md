@@ -63,7 +63,11 @@ Pick a station, one per style plus **Mix**, which rotates through every style, a
 
 - **It keeps playing in the background.** Radio plays through a media element rather than Web Audio, so on iPhone it carries on with the screen locked, with Safari in the background, and with the ringer switch on silent. The lock screen and Control Center show the song and station, with play, pause, next and scrubbing. If a song isn't written yet when the last one ends, Radio holds the line with silence (iOS stops a page that goes quiet) and starts the song as soon as it's ready.
 - **Every song is a real song.** **Open in the composer** takes the one you're hearing into the composer to keep editing, and **Copy link** gives its `#song:` link, the same song for anyone.
-- `tom.wemiller.com/#radio:jazz` opens the Jazz station.
+- **Pick what the Mix plays**: toggle styles on and off under the stations.
+- **Previous and next** on the lock screen, in Control Center and in CarPlay, not ±10 s skips. Previous goes back a song (or restarts one you're a few seconds into).
+- **Songs you've heard**: everything Radio plays is listed, with ☆ Saved for keepers. Play any song again, open it in the composer or copy its link. Your station, Mix styles and history are remembered on your device.
+- **Siri, Shortcuts and CarPlay**: `tom.wemiller.com/#radio:jazz&play` opens the Jazz station and starts it. Put that in a Shortcut's **Open URLs** action and "Hey Siri, Jazz Radio" opens it. iOS needs one tap before a web page can play sound, so the whole screen becomes a start button; after that it's in Now Playing, CarPlay included. (A web page can't be a CarPlay app of its own; that needs a native app.)
+- `tom.wemiller.com/#radio:jazz` opens the Jazz station; `#radio:mix&styles=jazz,funk` a Mix of just those.
 
 ## Share links: a hashtag is a song
 

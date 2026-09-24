@@ -130,13 +130,40 @@
       </div>
       <div class="big-actions">
         <button id="r-play" class="btn dice" disabled><span class="ico" aria-hidden="true">▶</span> <span class="lbl">Tune in</span></button>
-        <button id="r-skip" class="btn" disabled>⏭ Next song</button>
+        <div class="r-row">
+          <button id="r-prev" class="btn" disabled aria-label="Previous song">⏮ Previous</button>
+          <button id="r-skip" class="btn" disabled aria-label="Next song">Next ⏭</button>
+        </div>
+        <button id="r-save" class="btn ghost" disabled aria-pressed="false">☆ Save this song</button>
         <button id="r-keep" class="btn ghost" disabled>Open this song in the composer →</button>
         <button id="r-link" class="btn ghost" disabled>Copy this song's link</button>
         <p class="help">Every song is brand new, written as you listen. On iPhone it keeps playing with the screen locked, and the lock screen shows the song with play, pause and next.</p>
       </div>
     </section>
     <section class="panel stations" id="stations" aria-label="Stations"></section>
+    <section class="panel mix-styles" id="mix-styles" aria-label="Styles in the mix" hidden>
+      <span class="dial-label">Mix plays</span>
+      <div class="seg" id="mix-chips"></div>
+      <p class="help">Tap a style to leave it out of (or add it back to) the Mix. The song playing finishes first.</p>
+    </section>
+    <section class="panel history" aria-label="Songs you've heard">
+      <div class="history-head">
+        <h2>Songs you've heard</h2>
+        <div class="seg" id="history-filter"></div>
+      </div>
+      <ol id="history" class="history-list"></ol>
+      <p id="history-empty" class="help">Every song Radio plays shows up here, so you can play it again, save it, or take it into the composer. It's all kept on this device.</p>
+    </section>
+    <details class="panel shortcut">
+      <summary>Start a station from Siri, a Shortcut or CarPlay</summary>
+      <ol class="help">
+        <li>Pick a station above, then copy its start link: <button id="r-shortcut" class="btn" type="button">Copy start link</button></li>
+        <li>In the Shortcuts app, make a new shortcut with <b>Open URLs</b> and paste the link. Name it something like "Jazz Radio" and Siri will run it when you say its name.</li>
+        <li>The link opens Tom and writes the first song. iPhone asks for one tap before a web page can start playing: tap anywhere on the screen (or press play on the lock screen).</li>
+        <li>Once it's playing, it shows up in <b>Now Playing</b> on the lock screen and in CarPlay, with pause, next and previous on the car's screen and steering-wheel buttons.</li>
+      </ol>
+    </details>
+    <button id="r-tap" class="r-tap" type="button" hidden>▶ Tap anywhere to start</button>
   </main>
 
   <footer class="foot">

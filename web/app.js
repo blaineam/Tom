@@ -1,6 +1,6 @@
 // Tom — web music machine. Melody Machine, Lego-style Composer and Radio, all
 // driven by the same engine as the CLI (rendered in a Web Worker).
-import { STYLES } from './lib/styles.mjs';
+import { STYLES, STYLE_IDS } from './lib/styles.mjs';
 import { SCALES, CONTOUR_NAMES, chord, parseKey, noteName, spell, parseProgression, layoutChords } from './lib/theory.mjs';
 import {
   BLOCK_TYPES, BLOCK_ORDER, DRUM_LEVELS, FORMS, makeBlock, emptySong, autoSong, autoFill, autoBlock,
@@ -405,12 +405,17 @@ function soloBlock(b) {
 }
 
 // ─── Radio ──────────────────────────────────────────────────────────────────
-const radio = createRadio({ onChange: () => { renderRadio(); if (radio.active) stopPlayback(); } });
+const radio = createRadio({ onChange: () => { renderRadio(); if (radio.active) stopPlayback(); }, onTrack: remember });
+
+// Which styles the Mix plays (null = all), kept between visits like the station.
+state.mixStyles = store.get('mixStyles', null);
+const mixList = () => (state.mixStyles?.length ? state.mixStyles : STYLE_IDS);
+const radioOpts = (station) => ({ styles: station === MIX && state.mixStyles?.length < STYLE_IDS.length ? state.mixStyles : null });
 
 function tuneIn(station) {
   stopPlayback();
   state.station = station; store.set('station', station);
-  radio.tune(station);
+  radio.tune(station, radioOpts(station));
   syncHash();
 }
 function radioToggle() {
@@ -420,11 +425,67 @@ function radioToggle() {
   if (state.station) return tuneIn(state.station);
   toast('Pick a station below');
 }
+function toggleMixStyle(id) {
+  const now = new Set(mixList());
+  if (now.has(id)) { if (now.size === 1) return toast('The Mix needs at least one style'); now.delete(id); } else now.add(id);
+  state.mixStyles = STYLE_IDS.filter((x) => now.has(x));
+  if (state.mixStyles.length === STYLE_IDS.length) state.mixStyles = null;
+  store.set('mixStyles', state.mixStyles);
+  if (radio.state.station === MIX) radio.setStyles(radioOpts(MIX).styles);
+  syncHash(); renderRadio();
+}
+
+// ─── history: every song Radio plays, kept on this device ───
+const HISTORY_MAX = 200; // unsaved entries; saved ones are kept forever
+state.history = store.get('radioHistory', []);
+state.historyFilter = store.get('historyFilter', 'recent');
+function remember(track) {
+  const link = songHash(track.song), song = track.song;
+  const old = state.history.find((e) => e.link === link);
+  const entry = { link, title: track.title, style: song.style, key: song.key, mode: song.mode, bpm: Math.round(song.bpm), at: Date.now(), saved: !!old?.saved };
+  state.history = [entry, ...state.history.filter((e) => e.link !== link)];
+  let unsaved = 0;
+  state.history = state.history.filter((e) => e.saved || ++unsaved <= HISTORY_MAX);
+  store.set('radioHistory', state.history);
+}
+function toggleSaved(link) {
+  const e = state.history.find((x) => x.link === link);
+  if (!e) return;
+  e.saved = !e.saved;
+  store.set('radioHistory', state.history);
+  toast(e.saved ? `☆ Saved ${e.title}` : `Removed ${e.title} from saved`);
+  renderRadio();
+}
+const entrySong = (e) => decodeShare(e.link).song;
+const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+async function copyLink(url, what) { try { await navigator.clipboard.writeText(url); toast(`${what} copied`); } catch { prompt('Copy this link', url); } }
+const songUrl = (link) => `${location.origin}${location.pathname}${link}`;
+function openInComposer(song, title) {
+  radio.pause();
+  state.song = structuredClone(song); state.selected = null; store.set('song', state.song);
+  switchView('compose'); toast(`Opened ${title} in the composer`);
+}
+
+function renderHistory(nowLink) {
+  segmented($('#history-filter'), [['recent', 'Recent'], ['saved', `☆ Saved (${state.history.filter((e) => e.saved).length})`]], state.historyFilter, (v) => { state.historyFilter = v; store.set('historyFilter', v); renderRadio(); });
+  const list = state.historyFilter === 'saved' ? state.history.filter((e) => e.saved) : state.history;
+  $('#history-empty').hidden = list.length > 0;
+  if (!list.length) $('#history-empty').textContent = state.historyFilter === 'saved' ? 'Songs you save (☆) stay here for good.' : "Every song Radio plays shows up here, so you can play it again, save it, or take it into the composer. It's all kept on this device.";
+  $('#history').replaceChildren(...list.slice(0, 100).map((e) => h('li', { class: e.link === nowLink ? 'now' : null, style: { '--c': STYLES[e.style]?.color || '#888' } },
+    h('button', { class: 'h-play', type: 'button', 'aria-label': `Play ${e.title}`, on: { click: () => { stopPlayback(); radio.playSong(entrySong(e)); } } }, '▶'),
+    h('div', { style: { minWidth: '0' } }, h('div', { class: 'h-title' }, e.title), h('span', { class: 'h-meta' }, `${STYLES[e.style]?.name ?? e.style} · ${e.key} ${e.mode} · ${e.bpm} BPM · ${ago(e.at)}`)),
+    h('div', { class: 'h-actions' },
+      h('button', { type: 'button', 'aria-pressed': String(e.saved), 'aria-label': e.saved ? 'Unsave' : 'Save', title: e.saved ? 'Saved' : 'Save', on: { click: () => toggleSaved(e.link) } }, e.saved ? '★' : '☆'),
+      h('button', { type: 'button', class: 'h-extra', title: 'Open in the composer', on: { click: () => openInComposer(entrySong(e), e.title) } }, 'Edit'),
+      h('button', { type: 'button', title: 'Copy link', on: { click: () => copyLink(songUrl(e.link), 'Song link') } }, 'Link')))));
+}
 
 function renderRadio() {
   const st = radio.state, t = st.current, onAir = radio.active;
   $('.tabs').classList.toggle('on-air', onAir);
   if (state.view === 'radio') setPlayButton(onAir);
+  $('#r-tap').hidden = !(st.error && /^Tap play/.test(st.error));
+  if ($('#r-tap').hidden === false) $('#r-tap').textContent = `▶ Tap anywhere to start ${stationName(st.station)} Radio`;
   if (state.view !== 'radio') return;
   const station = st.station ?? state.station;
   document.documentElement.style.setProperty('--style', t ? STYLES[t.song.style].color : station && station !== MIX ? STYLES[station].color : '#ffd23f');
@@ -432,7 +493,15 @@ function renderRadio() {
     class: `station${id === MIX ? ' mix' : ''}`, type: 'button', 'aria-pressed': String(id === station),
     style: id === MIX ? {} : { '--c': STYLES[id].color },
     on: { click: () => (id === st.station && onAir ? null : tuneIn(id)) },
-  }, h('b', {}, `${stationName(id)} Radio`), h('small', {}, id === MIX ? 'Every style, one after another.' : STYLES[id].blurb))));
+  }, h('b', {}, `${stationName(id)} Radio`), h('small', {}, id === MIX ? (state.mixStyles ? `${state.mixStyles.length} styles you picked, one after another.` : 'Every style, one after another.') : STYLES[id].blurb))));
+  $('#mix-styles').hidden = station !== MIX;
+  if (station === MIX) {
+    const on = new Set(mixList());
+    $('#mix-chips').replaceChildren(...STYLE_IDS.map((id) => h('button', {
+      class: 'chip', type: 'button', 'aria-pressed': String(on.has(id)), style: { '--chip': STYLES[id].color },
+      on: { click: () => toggleMixStyle(id) },
+    }, swatch(), STYLES[id].name)));
+  }
 
   $('#r-station').textContent = station ? `📻 ${stationName(station).toUpperCase()} RADIO${onAir ? ' · ON AIR' : ''}` : '📻 TOM RADIO';
   const between = !t && st.played > 0 && st.station === station;
@@ -444,9 +513,15 @@ function renderRadio() {
   const btn = $('#r-play');
   btn.disabled = !station;
   $('.ico', btn).textContent = playing ? '❚❚' : '▶';
-  $('.lbl', btn).textContent = playing ? 'Pause' : t && st.station === station ? 'Resume' : 'Tune in';
+  $('.lbl', btn).textContent = playing ? 'Pause' : st.station === station && (t || st.played) ? 'Resume' : 'Tune in';
   $('#r-skip').disabled = !t || st.status === 'tuning';
-  $('#r-keep').disabled = $('#r-link').disabled = !t;
+  $('#r-prev').disabled = !radio.canGoBack;
+  $('#r-keep').disabled = $('#r-link').disabled = $('#r-save').disabled = !t;
+  const nowLink = t ? songHash(t.song) : null, saved = !!(nowLink && state.history.find((e) => e.link === nowLink)?.saved);
+  $('#r-save').textContent = saved ? '★ Saved' : '☆ Save this song';
+  $('#r-save').setAttribute('aria-pressed', String(saved));
+  $('#r-shortcut').disabled = !station;
+  renderHistory(nowLink);
   drawRadio();
   if (onAir && !radioFrame) radioFrame = requestAnimationFrame(radioTick);
 }
@@ -489,17 +564,15 @@ function drawRadio() {
 
 $('#r-play').addEventListener('click', radioToggle);
 $('#r-skip').addEventListener('click', () => radio.skip());
-$('#r-keep').addEventListener('click', () => {
-  const t = radio.state.current; if (!t) return;
-  radio.pause();
-  state.song = structuredClone(t.song); state.selected = null; store.set('song', state.song);
-  switchView('compose'); toast(`Opened ${t.title} in the composer`);
-});
-$('#r-link').addEventListener('click', async () => {
-  const t = radio.state.current; if (!t) return;
-  const url = `${location.origin}${location.pathname}${songHash(t.song)}`;
-  try { await navigator.clipboard.writeText(url); toast('Song link copied'); } catch { prompt('Copy this link', url); }
-});
+$('#r-prev').addEventListener('click', () => radio.previous());
+$('#r-save').addEventListener('click', () => { const t = radio.state.current; if (t) toggleSaved(songHash(t.song)); });
+$('#r-keep').addEventListener('click', () => { const t = radio.state.current; if (t) openInComposer(t.song, t.title); });
+$('#r-link').addEventListener('click', () => { const t = radio.state.current; if (t) copyLink(songUrl(songHash(t.song)), 'Song link'); });
+$('#r-shortcut').addEventListener('click', () => { if (state.station) copyLink(`${location.origin}${location.pathname}${radioHash()}&play`, `${stationName(state.station)} Radio start link`); });
+// A start link (…&play) can't make sound until the first tap, so any tap counts.
+$('#r-tap').addEventListener('click', () => radio.resume());
+document.addEventListener('pointerdown', (e) => { if (!$('#r-tap').hidden && !e.target.closest('#r-tap')) radio.resume(); }, true);
+// Siri / Shortcuts / CarPlay: a start link can also be resumed from the lock screen.
 
 // ─── export / import / share ────────────────────────────────────────────────
 const slug = (s) => (s || 'tom').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tom';
@@ -527,8 +600,13 @@ async function doExport(kind) {
   if (kind === 'midi') download(toMidi(r.events, r.bpm, bp.title), `${name}.mid`, 'audio/midi');
 }
 
+function radioHash() {
+  if (!state.station) return '#radio';
+  const styles = radioOpts(state.station).styles;
+  return `#radio:${state.station}${styles ? `&styles=${styles.join(',')}` : ''}`;
+}
 function viewHash() {
-  if (state.view === 'radio') return state.station ? `#radio:${state.station}` : '#radio';
+  if (state.view === 'radio') return radioHash();
   return state.view === 'melody' ? melodyHash(state.melody) : songHash(state.song);
 }
 function syncHash() {
@@ -537,9 +615,17 @@ function syncHash() {
 }
 function loadFromHash() {
   if (!location.hash || location.hash === '#') return false;
-  const radioLink = /^#radio(?::([\w-]+))?$/.exec(location.hash);
+  // #radio, #radio:jazz, #radio:mix&styles=jazz,funk, and &play to start at once (Siri / Shortcuts)
+  const radioLink = /^#radio(?::([\w-]+))?((?:&[\w-]+(?:=[\w,-]*)?)*)$/.exec(location.hash);
   if (radioLink) {
+    const q = Object.fromEntries(radioLink[2].split('&').filter(Boolean).map((kv) => kv.split('=')));
     if (radioLink[1] && STATIONS.includes(radioLink[1])) { state.station = radioLink[1]; store.set('station', state.station); }
+    if (q.styles) {
+      const picked = STYLE_IDS.filter((id) => q.styles.split(',').includes(id));
+      state.mixStyles = picked.length && picked.length < STYLE_IDS.length ? picked : null;
+      store.set('mixStyles', state.mixStyles);
+    }
+    if ('play' in q && state.station) state.autoplay = true;
     state.view = 'radio';
     return true;
   }
@@ -632,6 +718,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Space') { e.preventDefault(); $('#play').click(); }
   if (e.key === 'n' && state.view === 'melody') $('#dice').click();
   if (e.key === 'n' && state.view === 'radio') radio.skip();
+  if (e.key === 'p' && state.view === 'radio') radio.previous();
 });
 window.addEventListener('resize', () => { drawRoll(playing ? position() : null); drawRadio(); });
 
@@ -659,9 +746,16 @@ if ('serviceWorker' in navigator && isSecureContext) {
 
 loadFromHash();
 switchView(state.view);
+// A start link (#radio:jazz&play): write the first song and try to play it; iOS will
+// usually hold it until a tap (see #r-tap), or play on the lock screen / CarPlay.
+if (state.autoplay) { state.autoplay = false; tuneIn(state.station); }
 checkForUpdate();
 // Paste any #hashtag into the address bar and Tom plays that song.
 window.addEventListener('hashchange', () => {
   if (location.hash === viewHash()) return;
-  if (loadFromHash()) { stopPlayback(); switchView(state.view); if (state.view !== 'radio') toast(`Loaded ${decodeURIComponent(location.hash)}`); }
+  if (loadFromHash()) {
+    stopPlayback(); switchView(state.view);
+    if (state.view !== 'radio') toast(`Loaded ${decodeURIComponent(location.hash)}`);
+    else if (state.autoplay) { state.autoplay = false; tuneIn(state.station); }
+  }
 });

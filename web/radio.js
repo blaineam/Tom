@@ -13,6 +13,10 @@
 //     (and keeps running), and the switch to the song is allowed.
 //  3. Don't wait forever. A render that errors or stalls (a worker iOS froze
 //     or killed) is retried on a fresh worker.
+//
+// The lock screen and CarPlay get previous/next track buttons (not ±10 s):
+// Previous restarts a song past its first few seconds, otherwise it goes back
+// (the last song stays rendered, so that's instant).
 import { radioTrack, trackTitle, stationName, MIX } from './lib/radio.mjs';
 import { STYLES } from './lib/styles.mjs';
 import { encodeWav } from './lib/wav.mjs';
@@ -20,10 +24,12 @@ import { encodeWav } from './lib/wav.mjs';
 const AHEAD = 2;              // songs kept rendered beyond the one playing
 const RENDER_TIMEOUT = 150e3; // a full song renders in seconds; this means the worker is gone
 const RETRIES = 2;
+const BACK_KEPT = 1;          // previous songs kept rendered, for an instant Previous
+const RESTART_AFTER = 4;      // seconds into a song after which Previous restarts it
 const SILENCE = URL.createObjectURL(new Blob([encodeWav(new Float32Array(44100), new Float32Array(44100), 44100)], { type: 'audio/wav' }));
 const cancelled = (why) => Object.assign(new Error(why), { cancelled: true });
 
-export function createRadio({ onChange = () => {} } = {}) {
+export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   const audio = new Audio();
   audio.preload = 'auto';
   audio.setAttribute('playsinline', '');
@@ -53,15 +59,17 @@ export function createRadio({ onChange = () => {} } = {}) {
   }
 
   // ─── the queue ───
-  const s = { station: null, seed: null, current: null, upcoming: null, status: 'idle', error: null, played: 0 };
+  const s = { station: null, seed: null, styles: null, current: null, upcoming: null, status: 'idle', error: null, played: 0 };
   let gen = 0;          // bumps on every retune; work for an older station is dropped
   let ready = [];       // rendered songs waiting their turn
   let nextN = 0;        // index of the next song to render
   let rendering = false;
   let waiting = false;  // a song should be playing but none is ready yet
+  let back = [];        // songs already played, newest last (only the last BACK_KEPT keep their audio)
+  let oneOff = 0;       // bumps for each song asked for by name (history, Previous)
 
-  async function prepare(n, g) {
-    const song = radioTrack(s.station, s.seed, n);
+  const prepare = (n, g) => renderTrack(radioTrack(s.station, s.seed, n, { styles: s.styles }), n, g);
+  async function renderTrack(song, n, g) {
     for (let attempt = 0; ; attempt++) {
       try {
         const r = await renderWav(song);
@@ -90,15 +98,29 @@ export function createRadio({ onChange = () => {} } = {}) {
     });
   }
 
-  function play(track) {
+  /** A played song goes on the back stack; only the newest keep their audio. */
+  function retire(t) {
+    if (!t) return;
+    back.push(t);
+    if (back.length > 50) back.shift();
+    for (const x of back.slice(0, -BACK_KEPT)) if (x.url) { URL.revokeObjectURL(x.url); x.url = null; }
+  }
+  function blocked(e) {
+    s.status = 'paused';
+    s.error = e.name === 'NotAllowedError' ? 'Tap play to start listening' : e.message;
+    onChange();
+  }
+
+  function play(track, { retireOld = true } = {}) {
     const old = s.current;
     waiting = false;
     s.current = track; s.upcoming = ready[0] ?? null; s.status = 'playing'; s.error = null; s.played++;
     audio.loop = false;
     audio.src = track.url;
-    audio.play().catch((e) => { if (s.current === track) { s.status = 'paused'; s.error = e.name === 'NotAllowedError' ? 'Tap play to keep listening' : e.message; onChange(); } });
-    if (old) URL.revokeObjectURL(old.url);
+    audio.play().catch((e) => { if (s.current === track) blocked(e); });
+    if (retireOld && old !== track) retire(old);
     updateSession();
+    onTrack(track);
     fill();
     onChange();
   }
@@ -113,9 +135,8 @@ export function createRadio({ onChange = () => {} } = {}) {
   /** On to the next song: at once if it's ready, otherwise as soon as it is. */
   function advance() {
     if (ready.length) return play(ready.shift());
-    const old = s.current;
+    retire(s.current);
     s.current = null; s.status = 'tuning'; waiting = true;
-    if (old) URL.revokeObjectURL(old.url);
     holdWithSilence();
     updateSession();
     fill();
@@ -172,8 +193,11 @@ export function createRadio({ onChange = () => {} } = {}) {
     on('play', () => resume());
     on('pause', () => pause());
     on('nexttrack', () => skip());
-    on('previoustrack', () => { if (s.current) { audio.currentTime = 0; positionState(); } });
+    on('previoustrack', () => previous());
     on('seekto', (d) => { if (s.current) { audio.currentTime = d.seekTime; positionState(); } });
+    // iOS shows ±10 s buttons unless these are cleared explicitly; cleared, it shows previous/next.
+    on('seekbackward', null);
+    on('seekforward', null);
   }
 
   /** Must run inside a tap: it unlocks the audio element for later play() calls. */
@@ -182,17 +206,20 @@ export function createRadio({ onChange = () => {} } = {}) {
     if (!s.current) holdWithSilence();
   }
 
-  function clearQueue() {
+  function clearQueue({ keepCurrent = false } = {}) {
     for (const t of ready) URL.revokeObjectURL(t.url);
+    ready = []; rendering = false; waiting = false; s.upcoming = null;
+    if (keepCurrent) return;
+    for (const t of back) if (t.url) URL.revokeObjectURL(t.url);
     if (s.current) URL.revokeObjectURL(s.current.url);
-    ready = []; rendering = false; waiting = false;
+    back = [];
   }
 
-  function tune(station, seed = Math.random().toString(36).slice(2, 8)) {
+  function tune(station, { seed = Math.random().toString(36).slice(2, 8), styles = null } = {}) {
     gen++;
     resetWorker();
     clearQueue();
-    Object.assign(s, { station, seed, current: null, upcoming: null, status: 'tuning', error: null, played: 0 });
+    Object.assign(s, { station, seed, styles, current: null, upcoming: null, status: 'tuning', error: null, played: 0 });
     nextN = 0; waiting = true;
     unlock();
     updateSession();
@@ -206,7 +233,7 @@ export function createRadio({ onChange = () => {} } = {}) {
   }
   function resume() {
     if (!s.station) return;
-    if (s.current) { unlock(); s.status = 'playing'; s.error = null; audio.play().catch((e) => fail(e)); onChange(); return; }
+    if (s.current) { unlock(); s.status = 'playing'; s.error = null; audio.play().catch(blocked); onChange(); return; }
     // Between songs (or after a failed render): pick up where the queue is.
     unlock();
     s.error = null;
@@ -215,12 +242,48 @@ export function createRadio({ onChange = () => {} } = {}) {
     fill();
     onChange();
   }
-  function skip() { if (s.current) { audio.pause(); advance(); } }
+  function skip() { if (s.current) { oneOff++; audio.pause(); advance(); } }
+
+  /** Previous: restart this song, or (in its first seconds) go back one. Next then returns to it. */
+  function previous() {
+    if (s.current && audio.currentTime > RESTART_AFTER) { audio.currentTime = 0; positionState(); return; }
+    const t = back.pop();
+    if (!t) { if (s.current) { audio.currentTime = 0; positionState(); } return; }
+    if (s.current) { ready.unshift(s.current); s.current = null; }
+    if (t.url) { oneOff++; play(t, { retireOld: false }); } else playSong(t.song, { n: t.n, retireCurrent: false });
+  }
+
+  /** Play one particular song now (from history, or Previous past what's kept); the station carries on after it. */
+  function playSong(song, { n = -1, retireCurrent = true } = {}) {
+    if (!s.station) Object.assign(s, { station: song.style, seed: Math.random().toString(36).slice(2, 8), styles: null });
+    unlock();
+    const g = gen, token = ++oneOff;
+    if (s.current) { if (retireCurrent) retire(s.current); else URL.revokeObjectURL(s.current.url); s.current = null; }
+    s.status = 'tuning'; s.error = null; waiting = false;
+    holdWithSilence(); updateSession(); onChange();
+    renderTrack(song, n, g).then((t) => {
+      if (g !== gen || token !== oneOff) return URL.revokeObjectURL(t.url);
+      play(t, { retireOld: false });
+    }, (e) => { if (g === gen && token === oneOff && !e.cancelled) fail(e); });
+  }
+
+  /** Change which styles a mix plays. The song playing finishes; the queue is rewritten. */
+  function setStyles(styles) {
+    s.styles = styles;
+    if (s.station !== MIX) return;
+    gen++;
+    resetWorker();
+    clearQueue({ keepCurrent: true });
+    if (!s.current && s.status === 'tuning') waiting = true;
+    fill();
+    onChange();
+  }
   function stop() { if (s.status === 'playing' || s.status === 'tuning') pause(); }
 
   return {
     state: s,
-    tune, pause, resume, skip, stop,
+    tune, pause, resume, skip, previous, stop, playSong, setStyles,
+    get canGoBack() { return back.length > 0 || (!!s.current && audio.currentTime > RESTART_AFTER); },
     get active() { return s.status === 'playing' || s.status === 'tuning'; },
     get position() { return s.current ? audio.currentTime || 0 : 0; },
     get duration() { return s.current?.duration || 0; },
