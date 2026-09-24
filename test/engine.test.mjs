@@ -309,3 +309,41 @@ test('radio: every track has a link that rebuilds the same song', () => {
   assert.deepEqual(decodeShare('#radio:jazz'), { kind: 'radio', station: 'jazz' });
   assert.deepEqual(decodeShare('https://tom.wemiller.com/#radio'), { kind: 'radio', station: null });
 });
+
+test('in-place reverb and echo are bit-identical to the copying versions', async () => {
+  const { reverb, reverbInPlace, echo, echoInPlace } = await import('../lib/dsp.mjs');
+  const r = (await import('../lib/rng.mjs')).rng('fx');
+  const sig = () => Float32Array.from({ length: 30000 }, () => r.noise() * 0.5);
+  const L = sig(), R = sig();
+  const [a, b] = reverb(L, R, { size: 0.7, mix: 0.3 });
+  const [c, d] = reverbInPlace(Float32Array.from(L), Float32Array.from(R), { size: 0.7, mix: 0.3 });
+  assert.equal(hash(a), hash(c)); assert.equal(hash(b), hash(d));
+  assert.equal(hash(echo(L, 0.05)), hash(echoInPlace(Float32Array.from(L), 0.05)));
+});
+
+test('varied arranger: new songs differ in form, texture and ending; old links keep theirs', () => {
+  const songs = Array.from({ length: 24 }, (_, n) => radioTrack('synthwave', 'variety', n));
+  const forms = new Set(songs.map((s) => s.blocks.map((b) => b.type).join(' ')));
+  assert.ok(forms.size >= 5, `only ${forms.size} song forms`);
+  const breaks = songs.flatMap((s) => s.blocks.filter((b) => b.type === 'break'));
+  assert.ok(breaks.length && breaks.filter((b) => b.layers.bells).length / breaks.length < 0.5, 'bells in most breaks');
+  const sparkles = songs.map((s) => s.blocks.at(-1).sparkle !== false);
+  assert.ok(sparkles.includes(true) && sparkles.includes(false), 'endings vary');
+  for (const s of songs) {
+    const choruses = s.blocks.filter((b) => b.type === 'chorus');
+    assert.ok(choruses.every((c) => c.seed === choruses[0].seed), 'choruses share one hook');
+  }
+  // a link without gen stays on the original arranger
+  const old = decodeShare('#song:road-trip&length=short').song, v2 = decodeShare('#song:road-trip&length=short&gen=2').song;
+  assert.deepEqual(old.blocks.map((b) => b.type), ['intro', 'verse', 'chorus', 'outro', 'hit']);
+  assert.equal(songHash(v2), '#song:road-trip&length=short&gen=2');
+});
+
+test('varied songs render cleanly in every style', () => {
+  for (const style of STYLE_IDS) {
+    const out = render(songFromTag('clean-check', { style, length: 'short', gen: 2 }));
+    let peak = 0;
+    for (const v of out.L) { assert.ok(Number.isFinite(v), `${style}: non-finite sample`); peak = Math.max(peak, Math.abs(v)); }
+    assert.ok(peak > 0.1 && peak <= 0.9, `${style}: peak ${peak}`);
+  }
+});

@@ -416,7 +416,7 @@ function tuneIn(station) {
 function radioToggle() {
   const st = radio.state;
   if (radio.active) return radio.pause();
-  if (st.current && st.station === state.station) return radio.resume();
+  if (st.station === state.station && st.status === 'paused') return radio.resume();
   if (state.station) return tuneIn(state.station);
   toast('Pick a station below');
 }
@@ -435,8 +435,9 @@ function renderRadio() {
   }, h('b', {}, `${stationName(id)} Radio`), h('small', {}, id === MIX ? 'Every style, one after another.' : STYLES[id].blurb))));
 
   $('#r-station').textContent = station ? `📻 ${stationName(station).toUpperCase()} RADIO${onAir ? ' · ON AIR' : ''}` : '📻 TOM RADIO';
-  $('#r-status').textContent = st.status === 'tuning' ? (t ? 'writing the next song…' : 'writing your first song…') : st.error || '';
-  $('#r-title').textContent = t ? t.title : station ? (st.status === 'tuning' ? 'Tuning in…' : `${stationName(station)} Radio`) : 'Pick a station';
+  const between = !t && st.played > 0 && st.station === station;
+  $('#r-status').textContent = st.error || (st.status === 'tuning' ? (between ? 'writing the next song…' : 'writing your first song…') : '');
+  $('#r-title').textContent = t ? t.title : station ? (st.status === 'tuning' ? (between ? 'Up next…' : 'Tuning in…') : `${stationName(station)} Radio`) : 'Pick a station';
   $('#r-meta').textContent = t ? `${STYLES[t.song.style].name.toUpperCase()} · ${t.song.key} ${t.song.mode} · ${Math.round(t.song.bpm)} BPM · ${t.song.origin.length === 'short' ? 'SHORT' : 'FULL'} SONG` : 'Pick a style and Tom writes an endless run of new songs in it.';
   $('#r-next').textContent = st.upcoming ? `next: ${st.upcoming.title}` : t && st.status === 'playing' ? 'writing the next song…' : '';
   const playing = st.status === 'playing' || st.status === 'tuning';
@@ -601,7 +602,7 @@ $('#c-title').addEventListener('change', (e) => { state.song.title = e.target.va
 $('#c-key').addEventListener('change', (e) => { state.song.key = e.target.value; songChanged(); });
 $('#c-mode').addEventListener('change', (e) => { state.song.mode = e.target.value; songChanged(); });
 $('#c-bpm').addEventListener('change', (e) => { state.song.bpm = Math.min(200, Math.max(50, Number(e.target.value) || 100)); songChanged(); });
-$('#auto-song').addEventListener('click', () => { const tag = randomTag(); state.song = songFromTag(tag, { length: $('#auto-length').value, style: state.song.style }); songChanged({ keepSelection: false, edited: false }); toast(`✨ A fresh song: ${showTag(tag)}`); });
+$('#auto-song').addEventListener('click', () => { const tag = randomTag(); state.song = songFromTag(tag, { length: $('#auto-length').value, style: state.song.style, gen: 2 }); songChanged({ keepSelection: false, edited: false }); toast(`✨ A fresh song: ${showTag(tag)}`); });
 $('#auto-finish').addEventListener('click', () => { state.song = autoFill(state.song, { seed: randSeed(), length: $('#auto-length').value }); songChanged(); toast('✨ Finished the arrangement'); });
 $('#auto-block').addEventListener('click', () => {
   const b = state.song.blocks.find((x) => x.id === state.selected);

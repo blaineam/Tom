@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — 2026-09-23
+
+- **Radio keeps going with the screen locked.** A station that had started one song could stall at the next on a locked iPhone: the next song hadn't finished rendering before the lock, the page went quiet when the song ended, and iOS wouldn't let it start the next one. Now:
+  - it renders **two songs ahead**, so minutes of music are ready before the screen locks;
+  - if the next song still isn't ready, it **plays silence instead of stopping**, so iOS keeps the page running and allows the switch when the song is ready (the lock screen says "Writing the next song…");
+  - a render that **stalls or loses its worker** is retried on a fresh one, and if it still fails, play picks up where the queue left off.
+- **Renders use about half the memory.** Reverb and echo now run in place, and each mix bus is dropped once it's mixed. A 3-minute song peaks around 430 MB instead of 810 MB. The audio is bit-identical (test).
+- **Songs vary much more.** New auto-built songs (Radio, **Build a whole song**, `tom song`) come from a new arranger: six song forms (verse–chorus–verse, songs that open on the chorus, double verses, a repeated last chorus…), different section lengths, verses that sometimes carry their own low melody, second verses and later choruses that build, breaks that can be a breakdown, a drum break, a counter-line or (less often) the hook on bells, and an ending sparkle in about 40% of songs. Their links say `&gen=2`; links without it keep the original arranger, note for note.
+- **No more church bells.** Synthwave, Bright Pop, Chiptune, Lo-fi and Marimba had no bell voice of their own, so they fell back to an FM bell tuned to a clangy 3.5:1 ratio. Synthwave played it louder than any other style, through echo and a big reverb. Now Synthwave and Pop use a glassy, in-tune chime at about half the level, Chiptune an 8-bit ding, Lo-fi a high electric piano, and Marimba a high marimba. Existing links keep every note and its timing; only the timbre changed.
+- `tom song --gen 1` builds with the original arranger.
+
 ## 0.6.0 — 2026-09-23
 
 - **Radio.** Pick a station (any style, or **Mix**, which rotates through every style without repeats) and Tom writes an endless run of new songs, each with a fresh tag, key and tempo (within ±6% of the style's feel). The next song renders while the current one plays.

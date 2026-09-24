@@ -59,9 +59,9 @@ Songs are built from **blocks**, like Lego bricks: **Intro, Verse, Build, Chorus
 
 ### Radio
 
-Pick a station, one per style plus **Mix**, which rotates through every style, and Tom writes an endless run of brand-new songs in it: a fresh tag, key and tempo for each, mostly full-length. The next song is written while the current one plays, so the gaps between songs are just the ring-out of each ending.
+Pick a station, one per style plus **Mix**, which rotates through every style, and Tom writes an endless run of brand-new songs in it: a fresh tag, key and tempo for each, mostly full-length, and each with its own song form, section lengths and textures. Tom stays two songs ahead of the one playing, so the gaps between songs are just the ring-out of each ending.
 
-- **It keeps playing in the background.** Radio plays through a media element rather than Web Audio, so on iPhone it carries on with the screen locked, with Safari in the background, and with the ringer switch on silent. The lock screen and Control Center show the song and station, with play, pause, next and scrubbing.
+- **It keeps playing in the background.** Radio plays through a media element rather than Web Audio, so on iPhone it carries on with the screen locked, with Safari in the background, and with the ringer switch on silent. The lock screen and Control Center show the song and station, with play, pause, next and scrubbing. If a song isn't written yet when the last one ends, Radio holds the line with silence (iOS stops a page that goes quiet) and starts the song as soon as it's ready.
 - **Every song is a real song.** **Open in the composer** takes the one you're hearing into the composer to keep editing, and **Copy link** gives its `#song:` link, the same song for anyone.
 - `tom.wemiller.com/#radio:jazz` opens the Jazz station.
 
@@ -74,6 +74,7 @@ tom.wemiller.com/#sunset-drive                        a melody; the tag alone pi
 tom.wemiller.com/#sunset-drive&style=chip&busy=0.8    the same tag with a couple of dials turned
 tom.wemiller.com/#first-dance&style=jazz&key=Bb&bpm=132   any tag, in any style
 tom.wemiller.com/#song:road-trip&length=short         a whole auto-built song from a tag
+tom.wemiller.com/#song:road-trip&gen=2                the same tag through the newer, more varied arranger
 tom.wemiller.com/#song=eyJ2ZXJzaW9uIjox…               an edited song, carried in full
 ```
 
