@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 — 2026-09-25
+
+Suggestions from Nigel Lundsten:
+
+- **Volume for every mode.** A volume slider and mute button sit next to Play and work in the Melody Machine, the composer and Radio. Tom remembers the level. (On iPhone and iPad, Radio plays at the volume set with the device's buttons, because iOS doesn't let a web page change the volume of a media element. The slider applies to the Melody Machine and the composer there.)
+- **A scrub bar.** Drag the bar under the clock to jump anywhere in a melody or song while it plays. With nothing playing, dragging sets where Play starts. It moves through the Radio song you're hearing too.
+- **Loop blocks in the composer.** Tap 🔁 on any blocks (on the brick, or **🔁 Loop** in the inspector) and they play in order, then round again, until you turn a block's loop off or switch **Loop** off. Mark blocks 2 and 3, for example, and you hear 2, 3, 2, 3… Blocks don't have to be next to each other. Play goes straight to the first looped block (unless you've dragged the scrub bar somewhere else), and a song that plays past its loop goes back round to it. Toggling loops while a song plays takes effect at the next block boundary, without re-rendering or stopping, and each jump is a short crossfade so there's no click. Loop marks are saved with the song. They don't change the audio, so exports are the same as before.
+
 ## 0.8.1 — 2026-09-23
 
 - **Radio no longer stops after one song when the audio ends a hair early.** iOS fires `pause` just before `ended`, and Radio treated that pause as you pausing unless the element already reported `ended`. If the decoder stopped slightly short of the duration it reported (which depends on each song's exact length), Radio stopped the station and ignored the `ended` that followed. Now only a pause you ask for stops the station, and a watchdog moves on from a song that's sitting at its end without `ended`.

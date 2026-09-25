@@ -38,6 +38,13 @@ button { cursor: pointer; }
 .btn.play { background: var(--accent); color: var(--accent-ink); border-color: transparent; min-width: 96px; justify-content: center; }
 .btn.play.on { background: var(--danger); color: #230000; }
 .lcd { font: 700 13px/1 var(--mono); background: var(--lcd); color: var(--lcd-ink); padding: 10px 12px; border-radius: 8px; border: 1px solid #1d2a22; font-variant-numeric: tabular-nums; min-width: 128px; text-align: center; }
+.scrubber { display: flex; flex-direction: column; gap: 6px; padding: 7px 12px 5px; min-width: 170px; }
+.scrubber input[type="range"] { margin: 0; height: 14px; accent-color: var(--lcd-ink); cursor: pointer; }
+.scrubber input[type="range"]:disabled { opacity: .35; cursor: default; }
+.volume { display: flex; align-items: center; gap: 6px; }
+.volume .mute { padding: 7px 9px; font-size: 15px; }
+.volume input[type="range"] { width: 84px; accent-color: var(--accent); }
+.volume :disabled { opacity: .45; cursor: default; }
 .lcd-text { font: 500 12px/1.3 var(--mono); color: var(--lcd-ink); }
 .lcd-text.dim { color: var(--lcd-dim); }
 
@@ -98,6 +105,14 @@ input[type="range"] { width: 100%; accent-color: var(--style); }
 .timeline .brick { flex: 0 0 auto; min-width: 70px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
 .timeline .brick[aria-selected="true"] { outline: 3px solid #fff; outline-offset: 2px; }
 .timeline .brick.locked::after { content: "🔒"; position: absolute; top: 4px; right: 6px; font-size: 12px; }
+.timeline .brick { padding-right: 30px; }
+.b-loop { position: absolute; right: 4px; bottom: 6px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: rgba(0,0,0,.14); font-size: 12px; line-height: 24px; opacity: .45; filter: grayscale(1); }
+.b-loop:hover { opacity: .8; }
+.b-loop[aria-pressed="true"] { opacity: 1; filter: none; background: rgba(0,0,0,.3); }
+.timeline .brick.looped { box-shadow: inset 0 -5px 0 rgba(0,0,0,.18), 0 3px 0 rgba(0,0,0,.35), 0 0 0 2px rgba(255,255,255,.35); }
+.timeline .brick.looped.live { box-shadow: inset 0 -5px 0 rgba(0,0,0,.18), 0 3px 0 rgba(0,0,0,.35), 0 0 0 3px var(--accent), 0 0 14px var(--accent); }
+.loop-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.loop-bar .chip { --chip: var(--accent); }
 .timeline .brick.drop-before { box-shadow: -6px 0 0 var(--accent), inset 0 -5px 0 rgba(0,0,0,.18); }
 .brick .b-name { font-size: 14px; }
 .brick .b-bars { font: 700 11px/1 var(--mono); opacity: .7; }
@@ -166,8 +181,9 @@ input[type="range"] { width: 100%; accent-color: var(--style); }
   .screen-wrap { grid-template-columns: 1fr; }
   .big-actions { width: auto; }
   .dial.wide { grid-column: auto; }
-  .transport { margin-left: 0; width: 100%; }
-  .transport .lcd { flex: 1; }
+  .transport { margin-left: 0; width: 100%; flex-wrap: wrap; }
+  .transport .lcd { flex: 1 1 150px; min-width: 0; }
+  .volume input[type="range"] { width: 64px; }
   #roll { height: 200px; }
   #r-roll { height: 130px; }
   .r-title { font-size: 22px; }

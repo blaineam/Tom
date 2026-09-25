@@ -314,10 +314,14 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     onChange();
   }
   function stop() { if (s.status === 'playing' || s.status === 'tuning') pause(); }
+  /** Jump within the song playing (the scrub bar). */
+  function seek(t) { if (s.current && audio.duration > 0) { audio.currentTime = Math.max(0, Math.min(t, audio.duration - 0.05)); positionState(); } }
+  /** 0–1. iOS ignores this (a media element there always plays at the device volume). */
+  function setVolume(v) { audio.volume = Math.max(0, Math.min(1, v)); }
 
   return {
     state: s,
-    tune, pause, resume, skip, previous, stop, playSong, setStyles,
+    tune, pause, resume, skip, previous, stop, playSong, setStyles, seek, setVolume,
     get canGoBack() { return back.length > 0 || (!!s.current && audio.currentTime > RESTART_AFTER); },
     get active() { return s.status === 'playing' || s.status === 'tuning'; },
     get position() { return s.current ? audio.currentTime || 0 : 0; },

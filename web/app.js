@@ -14,7 +14,7 @@ import { tagOf, randomTag, melodyFromTag, melodyHash, songHash, songFromTag, dec
 import { STATIONS, MIX, stationName } from './lib/radio.mjs';
 import { createRadio, radioLog, radioLogText, clearRadioLog } from './radio.js';
 
-export const VERSION = '0.8.1';
+export const VERSION = '0.9.0';
 const BUILD = new URL(import.meta.url).searchParams.get('v'); // the deploy's commit, stamped by scripts/stamp.mjs
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -72,35 +72,78 @@ async function renderCached(bp) {
   return result;
 }
 
-let ac = null, src = null, playing = null;
+// ─── volume: one level for every mode ───
+const vol = { level: store.get('volume', 0.8), muted: store.get('muted', false) };
+const gain = () => (vol.muted ? 0 : vol.level ** 2); // squared, so the slider feels even to the ear
+// iOS plays media elements (Radio) at the device volume only, and ignores .volume.
+const mediaVolume = (() => { try { const a = new Audio(); a.volume = 0.5; return a.volume === 0.5; } catch { return false; } })();
+function applyVolume() {
+  if (master) master.gain.setTargetAtTime(gain(), ac.currentTime, 0.015);
+  radio.setVolume(gain());
+  const v = $('#volume'), m = $('#mute'), radioView = state.view === 'radio' && !mediaVolume;
+  v.value = vol.level;
+  v.disabled = radioView;
+  v.title = radioView ? 'On this device, Radio plays at the volume you set with its buttons' : `Volume ${Math.round(vol.level * 100)}%`;
+  m.textContent = vol.muted || !vol.level ? '🔇' : vol.level < 0.5 ? '🔉' : '🔊';
+  m.setAttribute('aria-pressed', String(vol.muted));
+  m.setAttribute('aria-label', vol.muted ? 'Unmute' : 'Mute');
+  m.disabled = radioView;
+}
+$('#volume').addEventListener('input', (e) => { vol.level = Number(e.target.value); vol.muted = false; store.set('volume', vol.level); store.set('muted', false); applyVolume(); });
+$('#mute').addEventListener('click', () => { vol.muted = !vol.muted; if (!vol.muted && !vol.level) vol.level = 0.5; store.set('muted', vol.muted); store.set('volume', vol.level); applyVolume(); });
+
+// ─── the scrub bar: drag to jump (while stopped, it sets where Play starts) ───
+let scrubbing = false;
+const scrub = $('#scrub');
+const scrubTotal = () => (state.view === 'radio' ? radio.duration : playing ? playing.duration : currentDuration());
+scrub.addEventListener('pointerdown', () => { scrubbing = true; });
+for (const ev of ['pointerup', 'pointercancel', 'change', 'blur']) scrub.addEventListener(ev, () => { scrubbing = false; });
+scrub.addEventListener('input', (e) => {
+  const t = Number(e.target.value) * scrubTotal();
+  if (state.view === 'radio') { radio.seek(t); drawRadio(); } else seekTo(t);
+});
+
+// Playback runs on Web Audio: every source goes through its own gain (for
+// click-free cuts) into one master gain (the volume). The composer plays
+// block by block: a source runs on through the rendered song by itself, and
+// only where the next block isn't the following one (a loop going round) is
+// the jump scheduled, a moment ahead, as a short crossfade. Seeking (the
+// scrub bar) is the same crossfade, now.
+let ac = null, master = null, playing = null, schedTimer = 0;
+let cue = 0; // where Play starts, set by dragging the scrub bar while stopped
+const FADE = 0.006, LOOKAHEAD = 0.25;
 // Rendering takes a moment, so a press of Play is pending until its audio is
 // ready. Stop (or switching tabs) bumps the token, and a render that finishes
 // for an old token never starts: only one source can ever be playing.
 let playToken = 0, loading = false;
-async function startPlayback(bp, { loop = false, view = state.view } = {}) {
+/** What the engine renders: the loop marks only steer playback, so they don't re-render. */
+const renderable = (bp) => (bp.blocks.some((b) => 'loop' in b) || 'loop' in bp ? { ...bp, loop: undefined, blocks: bp.blocks.map(({ loop, ...b }) => b) } : bp);
+async function startPlayback(bp, { loop = false, view = state.view, from = cue } = {}) {
   stopPlayback();
   radio.stop();
   const my = playToken;
   loading = true; setPlayButton(true);
   ac ??= new AudioContext(); // created inside the tap, so Safari lets it start
+  if (!master) { master = ac.createGain(); master.gain.value = gain(); master.connect(ac.destination); }
   const resumed = ac.state === 'suspended' ? ac.resume() : null;
   let r;
-  try { r = await renderCached(bp); await resumed; } finally { if (my === playToken) loading = false; }
+  try { r = await renderCached(renderable(bp)); await resumed; } finally { if (my === playToken) loading = false; }
   if (my !== playToken) return;
   const buf = ac.createBuffer(2, r.L.length, r.sampleRate);
   buf.copyToChannel(r.L, 0); buf.copyToChannel(r.R, 1);
-  src = ac.createBufferSource();
-  src.buffer = buf; src.loop = loop; src.connect(ac.destination);
-  src.onended = () => { if (playing && !loop) stopPlayback(); };
-  src.start();
-  playing = { t0: ac.currentTime, duration: r.duration, loop, view, bp };
+  playing = { duration: r.duration, loop, view, bp, buf, bounds: loop ? null : blockBounds(bp, r.duration), seg: null, next: null };
+  // In loop mode, Play goes straight to the loop (unless you scrubbed somewhere).
+  const loops = view === 'compose' ? loopedBlocks() : [];
+  if (!from && loops.length) from = playing.bounds[loops[0]][0];
+  seekTo(from);
   setPlayButton(true);
+  schedTimer ||= setInterval(schedule, 40);
   requestAnimationFrame(tick);
 }
 function stopPlayback() {
   playToken++; loading = false;
-  if (src) { src.onended = null; try { src.stop(); } catch { /* already stopped */ } src = null; }
-  playing = null;
+  if (playing) for (const seg of [playing.seg, playing.next]) if (seg) { seg.src.onended = null; try { seg.src.stop(); } catch { /* not started */ } }
+  playing = null; cue = 0;
   setPlayButton(state.view === 'radio' && radio.active);
   $('#playhead').hidden = true;
   drawRoll();
@@ -110,24 +153,96 @@ function setPlayButton(on) {
   const b = $('#play'), label = on ? (state.view === 'radio' ? 'Pause' : 'Stop') : 'Play';
   b.classList.toggle('on', on); $('.ico', b).textContent = on ? (state.view === 'radio' ? '❚❚' : '■') : '▶'; $('.lbl', b).textContent = label; b.setAttribute('aria-label', label);
 }
+
+/** Each block's [start, end) in the rendered song; the last runs to the end of the audio. */
+function blockBounds(bp, duration) {
+  const { starts } = timeline(bp);
+  return starts.map((s, i) => [s, i + 1 < starts.length ? starts[i + 1] : duration]);
+}
+/** Indices of the blocks marked 🔁, when loop mode is on. */
+function loopedBlocks() {
+  return state.song.loop ? state.song.blocks.flatMap((b, i) => (b.loop && b.type !== 'hit' ? [i] : [])) : [];
+}
+/** The block that plays after block k: the next looped one inside the loop, otherwise the next in line (-1: the end). */
+function following(k) {
+  const loops = playing.view === 'compose' ? loopedBlocks() : [];
+  const at = loops.indexOf(k);
+  if (at >= 0) return loops[(at + 1) % loops.length];
+  if (k + 1 < playing.bounds.length) return k + 1;
+  return loops.length ? loops[0] : -1; // played on past the loop: back round to it
+}
+function voice(offset, when, fadeIn) {
+  const src = ac.createBufferSource(), g = ac.createGain();
+  src.buffer = playing.buf; src.loop = playing.loop;
+  src.connect(g); g.connect(master);
+  if (fadeIn) { g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(1, when + FADE); }
+  src.start(when, offset);
+  const seg = { src, g, ctxAt: when, songAt: offset };
+  src.onended = () => { if (playing && current() === seg) stopPlayback(); };
+  return seg;
+}
+function fadeOut(seg, when) {
+  seg.src.onended = null;
+  const g = seg.g.gain;
+  g.cancelScheduledValues(when); g.setValueAtTime(g.value, when); g.linearRampToValueAtTime(0, when + FADE);
+  try { seg.src.stop(when + FADE + 0.005); } catch { /* already stopped */ }
+}
+/** The source that's sounding now (a scheduled jump takes over when its time comes). */
+function current() {
+  const p = playing;
+  if (p.next && ac.currentTime >= p.next.ctxAt) { p.seg = p.next; p.next = null; }
+  return p.seg;
+}
 function position() {
-  if (!playing) return 0;
-  const t = ac.currentTime - playing.t0;
+  if (!playing) return cue;
+  const s = current(), t = s ? s.songAt + Math.max(0, ac.currentTime - s.ctxAt) : 0;
   return playing.loop ? t % playing.duration : Math.min(t, playing.duration);
+}
+/** Jump playback (or, when stopped, where Play will start) to t seconds. */
+function seekTo(t) {
+  const total = playing ? playing.duration : currentDuration();
+  t = Math.max(0, Math.min(t, Math.max(0, total - 0.05)));
+  if (!playing) {
+    cue = t;
+    updateClock(t);
+    if (state.view === 'melody') drawRoll(t);
+    else if (state.view === 'compose') movePlayhead(t, state.song);
+    return;
+  }
+  const p = playing, now = ac.currentTime;
+  if (p.next) { fadeOut(p.next, now); p.next = null; }
+  if (p.seg) fadeOut(p.seg, now);
+  p.seg = voice(t, now, t > 0 || !!p.seg);
+}
+/** A moment before a block ends, line up the jump to whichever block comes next, if it isn't the following one. */
+function schedule() {
+  const p = playing;
+  if (!p) { clearInterval(schedTimer); schedTimer = 0; return; }
+  if (!p.bounds || p.next || !p.seg) return;
+  const t = position(), k = p.bounds.findLastIndex(([s]) => t >= s);
+  if (k < 0) return;
+  const to = following(k), end = p.bounds[k][1];
+  if (to === k + 1 || to < 0 || end - t > LOOKAHEAD) return;
+  const s = p.seg, when = Math.max(ac.currentTime, s.ctxAt + (end - s.songAt));
+  fadeOut(s, when);
+  p.next = voice(p.bounds[to][0], when, true);
 }
 function tick() {
   if (!playing) return;
   const t = position();
   updateClock(t);
   if (playing.view === 'melody') drawRoll(t);
-  else if (playing.view === 'compose') movePlayhead(t);
+  else if (playing.view === 'compose') movePlayhead(t, playing.bp);
   requestAnimationFrame(tick);
 }
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function updateClock(t) {
-  if (state.view === 'radio') { $('#clock').textContent = `${fmt(radio.position)} / ${fmt(radio.duration)}`; return; }
-  const total = playing ? playing.duration : currentDuration();
+  const total = state.view === 'radio' ? radio.duration : playing ? playing.duration : currentDuration();
+  if (state.view === 'radio') t = radio.position;
   $('#clock').textContent = `${fmt(t)} / ${fmt(total)}`;
+  const sc = $('#scrub');
+  sc.disabled = !total;
+  if (!scrubbing) sc.value = total ? Math.min(1, t / total) : 0;
 }
 function currentDuration() {
   if (state.view === 'radio') return radio.duration;
@@ -255,7 +370,7 @@ function renderComposer() {
   $('#c-bpm').value = Math.round(s.bpm);
   let dur = 0; try { dur = timeline(s).duration; } catch { /* empty */ }
   $('#c-length').textContent = `${s.blocks.length} blocks · ${fmt(dur)}`;
-  renderPalette(); renderTimeline(); renderInspector(); updateClock(position());
+  renderPalette(); renderLoopBar(); renderTimeline(); renderInspector(); updateClock(position());
 }
 
 function renderPalette() {
@@ -291,8 +406,9 @@ function renderTimeline() {
     const t = BLOCK_TYPES[b.type];
     const L = { ...t.layers, ...b.layers };
     const on = Object.keys(LAYER_ABBR).filter((k) => L[k]);
+    const looped = b.loop && b.type !== 'hit';
     const el = h('div', {
-      class: `brick${b.locked ? ' locked' : ''}`, role: 'button', tabindex: '0', draggable: 'true',
+      class: `brick${b.locked ? ' locked' : ''}${looped ? ` looped${state.song.loop ? ' live' : ''}` : ''}`, role: 'button', tabindex: '0', draggable: 'true',
       'aria-selected': String(b.id === state.selected), 'aria-label': `${t.label}, ${b.type === 'hit' ? 'ending' : b.bars + ' bars'}`,
       style: { '--c': t.color, width: `${b.type === 'hit' ? 80 : Math.max(84, b.bars * 10)}px` },
       on: {
@@ -311,10 +427,39 @@ function renderTimeline() {
     },
     h('span', { class: 'b-name' }, t.label),
     h('span', { class: 'b-bars' }, b.type === 'hit' ? `${Number(b.tail ?? 2.35).toFixed(1)}s` : `${b.bars} bars${L.drums && L.drums !== 'none' ? ` · ${L.drums}` : ''}`),
-    h('span', { class: 'b-layers' }, on.map((k) => h('i', {}, LAYER_ABBR[k]))));
+    h('span', { class: 'b-layers' }, on.map((k) => h('i', {}, LAYER_ABBR[k]))),
+    b.type !== 'hit' && h('button', {
+      class: 'b-loop', type: 'button', draggable: 'false', 'aria-pressed': String(!!b.loop),
+      'aria-label': `Loop ${t.label}`, title: b.loop ? 'Looping: tap to take it out of the loop' : 'Loop this block',
+      on: { click: (e) => { e.stopPropagation(); toggleBlockLoop(b); }, keydown: (e) => e.stopPropagation() },
+    }, '🔁'));
     return el;
   }));
 }
+// ─── loops: blocks marked 🔁 play round in order while loop mode is on ───
+function loopChanged() {
+  store.set('song', state.song);
+  renderLoopBar(); renderTimeline(); renderInspector();
+  if (playing?.view === 'compose') movePlayhead(position(), playing.bp);
+}
+function toggleBlockLoop(b) {
+  b.loop = !b.loop;
+  if (!b.loop) delete b.loop;
+  else state.song.loop = true; // marking a block turns loop mode on
+  loopChanged();
+}
+function renderLoopBar() {
+  const n = state.song.blocks.filter((b) => b.loop && b.type !== 'hit').length, on = !!state.song.loop;
+  const btn = $('#c-loop');
+  btn.setAttribute('aria-pressed', String(on));
+  btn.textContent = `🔁 Loop ${on ? 'on' : 'off'}`;
+  $('#c-loop-help').textContent = !n
+    ? 'Tap 🔁 on any blocks to loop them: they play in order, then round again, until you turn it off.'
+    : on ? `Looping ${n === 1 ? '1 block' : `${n} blocks`}, in order, round and round. Tap 🔁 on a block to add or drop it.`
+      : `${n === 1 ? '1 block is' : `${n} blocks are`} marked 🔁. Turn Loop on to play them round.`;
+}
+$('#c-loop').addEventListener('click', () => { state.song.loop = !state.song.loop; if (!state.song.loop) delete state.song.loop; loopChanged(); });
+
 function dropAt(e, index) {
   const nt = e.dataTransfer.getData('text/tom-new');
   if (nt) return insertBlock(nt, index);
@@ -334,9 +479,10 @@ function removeBlock(id) {
   state.song.blocks = state.song.blocks.filter((x) => x.id !== id); songChanged({ keepSelection: false });
 }
 
-function movePlayhead(t) {
+function movePlayhead(t, bp) {
   const ph = $('#playhead'), bricks = [...$('#timeline').children];
-  const { starts, duration } = timeline(playing.bp);
+  if (!bp.blocks.length) { ph.hidden = true; return; }
+  const { starts, duration } = timeline(bp);
   let i = starts.findIndex((s, k) => t >= s && (k === starts.length - 1 || t < starts[k + 1]));
   if (i < 0 || !bricks[i]) { ph.hidden = true; return; }
   const end = i === starts.length - 1 ? duration : starts[i + 1];
@@ -395,6 +541,7 @@ function renderInspector() {
     h('button', { class: 'btn', type: 'button', on: { click: () => soloBlock(b) } }, '▶ Play this block'),
     b.type !== 'hit' && h('button', { class: 'btn', type: 'button', disabled: b.locked, on: { click: () => { Object.assign(b, autoBlock({ ...b, locked: false }, rng(randSeed()), state.song), { locked: false }); songChanged(); } } }, '✨ Surprise me'),
     h('button', { class: 'btn', type: 'button', 'aria-pressed': String(!!b.locked), on: { click: () => upd({ locked: !b.locked }) } }, b.locked ? 'Unlock' : 'Lock'),
+    b.type !== 'hit' && h('button', { class: 'btn', type: 'button', 'aria-pressed': String(!!b.loop), on: { click: () => toggleBlockLoop(b) } }, b.loop ? '🔁 Looping' : '🔁 Loop'),
     h('button', { class: 'btn', type: 'button', on: { click: () => moveBlock(b.id, -1) } }, '←'),
     h('button', { class: 'btn', type: 'button', on: { click: () => moveBlock(b.id, 1) } }, '→'),
     h('button', { class: 'btn', type: 'button', on: { click: () => { const i = state.song.blocks.indexOf(b); const copy = { ...structuredClone(b), id: `${b.id}c${Date.now().toString(36)}`, locked: false }; state.song.blocks.splice(i + 1, 0, copy); state.selected = copy.id; songChanged(); } } }, 'Duplicate'),
@@ -409,6 +556,7 @@ function soloBlock(b) {
 
 // ─── Radio ──────────────────────────────────────────────────────────────────
 const radio = createRadio({ onChange: () => { renderRadio(); if (radio.active) stopPlayback(); }, onTrack: remember });
+applyVolume();
 
 // Which styles the Mix plays (null = all), kept between visits like the station.
 state.mixStyles = store.get('mixStyles', null);
@@ -659,6 +807,7 @@ function switchView(v) {
   }
   // The radio keeps playing while you browse the other tabs; their Play button takes over from it.
   setPlayButton(v === 'radio' && radio.active);
+  applyVolume();
   if (v === 'melody') { renderMelodyControls(); drawRoll(); } else if (v === 'compose') renderComposer(); else renderRadio();
   updateClock(0);
   syncHash();

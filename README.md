@@ -44,9 +44,13 @@ Press **🎲 New melody** and you get one. Then dial it in:
 
 Turning a dial **keeps the seed**, so you're shaping *this* melody rather than getting a new one. The piano roll shows every note, and **Add to composer →** drops it into a song.
 
+Next to Play, the **scrub bar** under the clock jumps anywhere in what's playing (drag it while stopped to choose where Play starts), and the **volume** slider and mute button apply to every mode.
+
 ### Composer
 
 Songs are built from **blocks**, like Lego bricks: **Intro, Verse, Build, Chorus, Break, Outro** and an **Ending** hit. Click or drag bricks onto the timeline and reorder them. Select a brick to shape it: length, chords, layers (chords, arp, bass, melody, counter-melody, bells, octave doubling, riser, crash), drum level, filter sweep, and the same melody dials.
+
+**🔁 Loop** any blocks to practise or jam over them: tap 🔁 on the bricks you want and they play in order, round and round (mark blocks 2 and 3 and you hear 2, 3, 2, 3…), until you take a block out of the loop or switch **Loop** off.
 
 **✨ Auto** does the heavy lifting whenever you want:
 
