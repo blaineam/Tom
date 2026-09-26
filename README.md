@@ -40,7 +40,20 @@ Press **🎲 New melody** and you get one. Then dial it in:
 | **Shape** | Arch, rise, fall, wave or flat: the overall contour of the line |
 | **Phrase form** | AABA, ABAB, AAAB, ABAC, ABCD: which bars repeat the hook |
 | **Register** | Low, mid or high |
-| **Chords · Backing · Drums** | Progression presets, chords and bass on/off, drum density |
+| **Chords** | About 35 progressions, from I–V–vi–IV to ii7–V7–Imaj7 and i–VII–VI–V7, or type your own (see below) |
+| **Sound** | What plays the melody: the style's own voice, or any of about 35 others (kalimba, sax, harp, steel pan, harmonica…) |
+| **Backing · Drums** | Chords and bass on/off, drum density |
+
+**Type your own chords** in the box under Chords, as scale degrees (`1-5-6-4`) or Roman numerals (`vi-IV-I-V`), each with an optional color:
+
+| You type | You get (in C) |
+|---|---|
+| `Imaj7` `ii7` `V7` `vi9` `I6` | sevenths, ninths and sixths: Cmaj7, Dm7, G7, Am9, C6. `V7` is always a dominant, in minor keys too. |
+| `IVadd9` `Vsus4` `Isus2` | added ninths and suspensions |
+| `IVm` `IM` `viidim` | a different quality: the minor iv borrowed from C minor, a major I, a diminished vii |
+| `bVII` `bVI` `bIII` `bII` | major chords borrowed from the parallel key: Bb, Ab, Eb, Db |
+| `V/V` `V7/ii` `IV/IV` | a chord built on another degree: D (V of V), A7 (V7 of ii) |
+| `I:2,V:2,vi:4` | how many beats each chord lasts (default 4) |
 
 Turning a dial **keeps the seed**, so you're shaping *this* melody rather than getting a new one. The piano roll shows every note, and **Add to composer →** drops it into a song.
 
@@ -48,9 +61,11 @@ Next to Play, the **scrub bar** under the clock jumps anywhere in what's playing
 
 ### Composer
 
-Songs are built from **blocks**, like Lego bricks: **Intro, Verse, Build, Chorus, Break, Outro** and an **Ending** hit. Click or drag bricks onto the timeline and reorder them. Select a brick to shape it: length, chords, layers (chords, arp, bass, melody, counter-melody, bells, octave doubling, riser, crash), drum level, filter sweep, and the same melody dials.
+Songs are built from **blocks**, like Lego bricks: **Intro, Verse, Build, Chorus, Break, Outro** and an **Ending** hit. Click or drag bricks onto the timeline and reorder them. Select a brick to shape it: length, chords (a preset, or type your own as above), layers (chords, arp, bass, melody, counter-melody, bells, octave doubling, riser, crash), drum level, filter sweep, and the same melody dials.
 
 **🔁 Loop** any blocks to practise or jam over them: tap 🔁 on the bricks you want and they play in order, round and round (mark blocks 2 and 3 and you hear 2, 3, 2, 3…), until you take a block out of the loop or switch **Loop** off.
+
+**Sounds**: under the song's key and tempo, pick what plays the **melody**, the **counter-line** and the **bells**. Each menu starts with the style's own voice and the sounds that suit the style, then every other sound Tom has.
 
 **✨ Auto** does the heavy lifting whenever you want:
 
@@ -82,7 +97,7 @@ tom.wemiller.com/#sunset-drive                        a melody; the tag alone pi
 tom.wemiller.com/#sunset-drive&style=chip&busy=0.8    the same tag with a couple of dials turned
 tom.wemiller.com/#first-dance&style=jazz&key=Bb&bpm=132   any tag, in any style
 tom.wemiller.com/#song:road-trip&length=short         a whole auto-built song from a tag
-tom.wemiller.com/#song:road-trip&gen=2                the same tag through the newer, more varied arranger
+tom.wemiller.com/#song:road-trip&gen=3                the same tag through the newest arranger (varied forms, richer chords, its own sounds)
 tom.wemiller.com/#song=eyJ2ZXJzaW9uIjox…               an edited song, carried in full
 ```
 
@@ -148,7 +163,7 @@ Common flags: `--style`, `--seed` (any word or `#hashtag`), `--key` (e.g. `A`, `
 
 - **Blueprints.** A song is a JSON list of blocks. Each block says *which* layers play and how its melody is shaped; each style says *how* those layers sound. The web app, the CLI and share links all produce the same blueprint for the same input.
 - **Melodies with memory.** A motif (a bar of rhythm plus a melodic shape) is invented for each letter of the phrase form, then replayed. That repetition is what makes a tune hummable instead of a random walk. The contour steers the line, strong beats land on chord tones, every leap is answered by a step back, there are no tritone leaps, and the phrase resolves to the tonic.
-- **Synthesis from scratch.** Band-limited oscillators, Karplus–Strong plucks, FM electric piano and bells, biquad filters, a Freeverb reverb, echo, kick-driven sidechain and a soft-clipping master bus, all in plain JavaScript on `Float32Array`s. The same code runs in Node and in a Web Worker in the browser.
+- **Synthesis from scratch.** Band-limited oscillators, Karplus–Strong plucks, FM electric piano and chimes, biquad filters, a Freeverb reverb, echo, kick-driven sidechain and a soft-clipping master bus, all in plain JavaScript on `Float32Array`s. The same code runs in Node and in a Web Worker in the browser.
 - **Deterministic.** Every random choice comes from a seeded generator, and each layer draws from its own forked stream, so changing one part never reshuffles another. The notes are identical everywhere. On one machine the audio is byte-identical too; across different CPUs, `sin`/`exp` can round differently in the last bit, far below anything audible.
 
 ```
@@ -157,7 +172,8 @@ lib/
   dsp.mjs         oscillators, envelopes, filters, reverb, mix bus
   instruments.mjs drums, plucks, pads, leads, bass
   theory.mjs      scales, chords, progressions, the melody generator
-  styles.mjs      the sound palettes (synthwave, pop, chip, lofi, marimba, jazz, orchestral, hiphop, rock, reggae, edm, country, funk)
+  styles.mjs      the styles (synthwave, pop, chip, lofi, marimba, jazz, orchestral, hiphop, rock, reggae, edm, country, funk)
+  sounds.mjs      the melodic sound pool, and which sounds suit each style
   blueprint.mjs   blocks, Auto song / finish / surprise, jingles, melodies
   arrange.mjs     blueprint → audio + note events
   share.mjs       hashtag seeds and share links

@@ -1,7 +1,8 @@
 // Tom — web music machine. Melody Machine, Lego-style Composer and Radio, all
 // driven by the same engine as the CLI (rendered in a Web Worker).
 import { STYLES, STYLE_IDS } from './lib/styles.mjs';
-import { SCALES, CONTOUR_NAMES, chord, parseKey, noteName, spell, parseProgression, layoutChords } from './lib/theory.mjs';
+import { SCALES, CONTOUR_NAMES, parseKey, noteName, spell, parseProgression, layoutChords, chordName } from './lib/theory.mjs';
+import { SOUNDS, SOUND_IDS, PALETTES, SLOTS, SLOT_NAMES } from './lib/sounds.mjs';
 import {
   BLOCK_TYPES, BLOCK_ORDER, DRUM_LEVELS, FORMS, makeBlock, emptySong, autoSong, autoFill, autoBlock,
   melodySong, validate,
@@ -14,7 +15,7 @@ import { tagOf, randomTag, melodyFromTag, melodyHash, songHash, songFromTag, dec
 import { STATIONS, MIX, stationName } from './lib/radio.mjs';
 import { createRadio, radioLog, radioLogText, clearRadioLog } from './radio.js';
 
-export const VERSION = '0.9.0';
+export const VERSION = '0.10.0';
 const BUILD = new URL(import.meta.url).searchParams.get('v'); // the deploy's commit, stamped by scripts/stamp.mjs
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -31,9 +32,17 @@ const h = (tag, attrs = {}, ...kids) => {
 };
 const KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 const PRESETS = {
-  major: [['1-5-6-4', 'I–V–vi–IV · anthem'], ['1-6-4-5', 'I–vi–IV–V · doo-wop'], ['6-4-1-5', 'vi–IV–I–V · heartfelt'], ['1-4-5-1', 'I–IV–V–I · classic'], ['4-5-1-6', 'IV–V–I–vi · lift'], ['2-5-1-6', 'ii–V–I–vi · jazzy'], ['1-3-4-5', 'I–iii–IV–V · bright']],
-  minor: [['6-7-1-1', 'VI–VII–i · synthwave'], ['1-6-3-7', 'i–VI–III–VII · epic'], ['1-4-6-5', 'i–iv–VI–v · moody'], ['6-4-1-5', 'VI–iv–i–v · drift'], ['4-6-7-7', 'iv–VI–VII · rise'], ['1-7-6-7', 'i–VII–VI–VII · run']],
+  major: [['1-5-6-4', 'I–V–vi–IV · anthem'], ['1-6-4-5', 'I–vi–IV–V · doo-wop'], ['6-4-1-5', 'vi–IV–I–V · heartfelt'], ['1-4-5-1', 'I–IV–V–I · classic'], ['4-5-1-6', 'IV–V–I–vi · lift'], ['2-5-1-6', 'ii–V–I–vi · jazzy'], ['1-3-4-5', 'I–iii–IV–V · bright'],
+    ['Imaj7-vi7-ii7-V7', 'Imaj7–vi7–ii7–V7 · smooth'], ['ii7-V7-Imaj7-Imaj7', 'ii7–V7–Imaj7 · jazz turnaround'], ['IVmaj7-iii7-vi7-ii7', 'IVmaj7–iii7–vi7–ii7 · lo-fi'], ['IVmaj7-V7-iii7-vi', 'IVmaj7–V7–iii7–vi · royal road'],
+    ['Iadd9-V-vi-IVadd9', 'Iadd9–V–vi–IVadd9 · shimmer'], ['vi-IV-I-Vsus4', 'vi–IV–I–Vsus4 · hanging'], ['I-V/vi-vi-IV', 'I–III–vi–IV · tearjerker'], ['I-iii-IV-IVm', 'I–iii–IV–iv · bittersweet'],
+    ['I-bVII-IV-I', 'I–♭VII–IV–I · rock'], ['I-bVI-bVII-I', 'I–♭VI–♭VII–I · heroic'], ['I-V/V-IV-I', 'I–II–IV–I · country'], ['I-V7/IV-IV-IVm', 'I–I7–IV–iv · gospel'],
+    ['I-V-vi-iii-IV-I-IV-V', 'I–V–vi–iii–IV–I–IV–V · Pachelbel']],
+  minor: [['6-7-1-1', 'VI–VII–i · synthwave'], ['1-6-3-7', 'i–VI–III–VII · epic'], ['1-4-6-5', 'i–iv–VI–v · moody'], ['6-4-1-5', 'VI–iv–i–v · drift'], ['4-6-7-7', 'iv–VI–VII · rise'], ['1-7-6-7', 'i–VII–VI–VII · run'],
+    ['i-iv-V7-i', 'i–iv–V7–i · classic minor'], ['i-VII-VI-V7', 'i–VII–VI–V7 · flamenco'], ['i-VI-iv-V7', 'i–VI–iv–V7 · drama'], ['i7-iv7-VII-IIImaj7', 'i7–iv7–VII–IIImaj7 · smooth'],
+    ['VImaj7-VII-i7-i7', 'VImaj7–VII–i7 · night drive'], ['iadd9-VI-III-VII', 'iadd9–VI–III–VII · shimmer'], ['i-III-VII-IVM', 'i–III–VII–IV · dorian'], ['i-bII-VII-i', 'i–♭II–VII–i · dark'],
+    ['i9-IV9', 'i9–IV9 · funk vamp'], ['i7-VImaj7-iv7-v7', 'i7–VImaj7–iv7–v7 · late night']],
 };
+const CHORD_HELP = 'Degrees 1–7 or I–VII, plus colors: Imaj7, ii7, V7, IVadd9, Vsus4, IVm (minor iv), bVII (borrowed), V/V (secondary). Add :2 for two beats.';
 const CONTOUR_PATHS = { arch: 'M2 12 Q13 -4 24 12', rise: 'M2 12 L24 2', fall: 'M2 2 L24 12', wave: 'M2 7 Q7 -1 13 7 T24 7', flat: 'M2 7 L24 7' };
 const LAYER_LABELS = { pad: 'Chords', arp: 'Arp', bass: 'Bass', lead: 'Melody', counter: 'Counter', bells: 'Bells', octaves: 'Octaves', riser: 'Riser', crash: 'Crash' };
 const LAYER_ABBR = { pad: 'CH', arp: 'AR', bass: 'BS', lead: 'MEL', counter: 'CTR', bells: 'BEL', octaves: '8VA', riser: 'RSR' };
@@ -278,7 +287,7 @@ function renderMelodyControls() {
   const m = state.melody;
   document.documentElement.style.setProperty('--style', STYLES[m.style].color);
   segmented($('#m-style'), Object.entries(STYLES).map(([id, s]) => [id, s.name, swatch()]), m.style, (v) => {
-    const s = STYLES[v]; Object.assign(state.melody, { style: v, key: s.key, mode: s.mode, bpm: Math.round(s.bpm), progression: '' }); changedMelody();
+    const s = STYLES[v]; Object.assign(state.melody, { style: v, key: s.key, mode: s.mode, bpm: Math.round(s.bpm), progression: '', sound: '' }); changedMelody();
   }, { color: (v) => STYLES[v].color });
   fillSelect($('#m-key'), KEYS.map((k) => [k, k]), m.key);
   fillSelect($('#m-mode'), Object.keys(SCALES).map((k) => [k, k]), m.mode);
@@ -290,7 +299,9 @@ function renderMelodyControls() {
   segmented($('#m-form'), FORMS.map((f) => [f, f]), m.form, (v) => set({ form: v }));
   segmented($('#m-octave'), [[0, 'Low'], [1, 'Mid'], [2, 'High']], m.octave, (v) => set({ octave: v }));
   const presets = /minor|dorian/.test(m.mode) ? PRESETS.minor : PRESETS.major;
-  fillSelect($('#m-prog'), [['', `Style default (${STYLES[m.style].progressions.chorus || STYLES[m.style].progressions.default})`], ...presets], m.progression);
+  fillSelect($('#m-prog'), [['', `Style default (${STYLES[m.style].progressions.chorus || STYLES[m.style].progressions.default})`], ...presets, ...(m.progression && !presets.some(([p]) => p === m.progression) ? [[m.progression, `${m.progression} · yours`]] : [])], m.progression);
+  $('#m-prog-text').value = m.progression || '';
+  $('#m-sound').replaceChildren(soundSelect(m.style, 'lead', m.sound, (v) => set({ sound: v })));
   segmented($('#m-backing'), [['chords', 'Chords'], ['bass', 'Bass']], null, (v) => set({ [v]: !m[v] }));
   [...$('#m-backing').children].forEach((b, i) => b.setAttribute('aria-pressed', String(i === 0 ? m.chords : m.bass)));
   segmented($('#m-drums'), ['none', 'light', 'half', 'full'].map((d) => [d, d]), m.drums, (v) => set({ drums: v }));
@@ -311,10 +322,21 @@ function changedMelody() {
   melodyTimer = setTimeout(() => { if (playing?.view === 'melody' || (loading && state.view === 'melody')) startPlayback(melodyBlueprint(), { loop: true, view: 'melody' }); else renderCached(melodyBlueprint()).catch(showError); }, 180);
 }
 
-function chordLabel(root, S, degree) {
-  const ch = chord(root, S, degree);
-  const third = (ch[1] - ch[0] + 12) % 12, fifth = (ch[2] - ch[0] + 12) % 12;
-  return spell(ch[0], root, S) + (fifth === 6 ? '°' : third === 3 ? 'm' : '');
+const chordLabel = (root, S, spec) => chordName(root, S, spec, (m) => spell(m, root, S));
+/** A progression the user typed, or null (with a toast saying why). */
+function checkProgression(text) {
+  const v = text.trim().replace(/[–—]/g, '-').replace(/♭/g, 'b');
+  if (!v) return '';
+  try { parseProgression(v); return v; } catch (e) { toast(`${e.message}. ${CHORD_HELP}`); return null; }
+}
+/** Sound menu for one slot: the style's own voice, what suits the style, then everything else. */
+function soundSelect(style, slot, value, pick) {
+  const p = PALETTES[style] || {}, fits = p[slot] || [];
+  const opt = (id, label) => h('option', { value: id, selected: id === (value || '') }, label);
+  return h('select', { 'aria-label': `${SLOT_NAMES[slot]} sound`, on: { change: (e) => pick(e.target.value) } },
+    opt('', `${p.own?.[slot] ?? 'Style'} (style's own)`),
+    h('optgroup', { label: `Suits ${STYLES[style].name}` }, fits.map((id) => opt(id, SOUNDS[id].name))),
+    h('optgroup', { label: 'More sounds' }, SOUND_IDS.filter((id) => !fits.includes(id)).map((id) => opt(id, SOUNDS[id].name))));
 }
 
 function drawRoll(t = null) {
@@ -333,7 +355,7 @@ function drawRoll(t = null) {
   // chords
   const spans = layoutChords(parseProgression(bp.blocks[0].progression || STYLES[bp.style].progressions.chorus || STYLES[bp.style].progressions.default), bp.blocks[0].bars);
   g.font = '600 11px "JetBrains Mono", monospace'; g.fillStyle = 'rgba(159,242,184,.7)';
-  for (const s of spans) g.fillText(chordLabel(r.root, r.scale, s.degree), x(s.start) + 4, H - 8);
+  for (const s of spans) g.fillText(chordLabel(r.root, r.scale, s), x(s.start) + 4, H - 8);
   // notes
   const now = t == null ? -1 : (t / (60 / r.bpm));
   for (const n of notes) {
@@ -363,11 +385,17 @@ function renderComposer() {
   document.documentElement.style.setProperty('--style', st.color);
   $('#c-title').value = s.title || '';
   segmented($('#c-style'), Object.entries(STYLES).map(([id, x]) => [id, x.name, swatch()]), s.style, (v) => {
-    const x = STYLES[v]; Object.assign(state.song, { style: v, key: x.key, mode: x.mode, bpm: Math.round(x.bpm) }); songChanged();
+    const x = STYLES[v]; Object.assign(state.song, { style: v, key: x.key, mode: x.mode, bpm: Math.round(x.bpm) }); delete state.song.sounds; songChanged();
   }, { color: (v) => STYLES[v].color });
   fillSelect($('#c-key'), KEYS.map((k) => [k, k]), s.key);
   fillSelect($('#c-mode'), Object.keys(SCALES).map((k) => [k, k]), s.mode);
   $('#c-bpm').value = Math.round(s.bpm);
+  $('#c-sounds').replaceChildren(...SLOTS.map((slot) => h('label', { class: 'mini' }, SLOT_NAMES[slot], soundSelect(s.style, slot, s.sounds?.[slot], (v) => {
+    const next = { ...s.sounds, [slot]: v || undefined };
+    for (const k of Object.keys(next)) if (!next[k]) delete next[k];
+    if (Object.keys(next).length) s.sounds = next; else delete s.sounds;
+    songChanged();
+  }))));
   let dur = 0; try { dur = timeline(s).duration; } catch { /* empty */ }
   $('#c-length').textContent = `${s.blocks.length} blocks · ${fmt(dur)}`;
   renderPalette(); renderLoopBar(); renderTimeline(); renderInspector(); updateClock(position());
@@ -388,7 +416,7 @@ function renderPalette() {
 }
 
 function insertBlock(type, at = null) {
-  const b = autoBlock(makeBlock(type), rng(randSeed()), state.song);
+  const b = autoBlock(makeBlock(type), rng(randSeed()), state.song, { rich: true });
   const blocks = state.song.blocks;
   let i = at ?? (blocks.findIndex((x) => x.id === state.selected) + 1 || blocks.length);
   const hitAt = blocks.findIndex((x) => x.type === 'hit');
@@ -519,13 +547,15 @@ function renderInspector() {
     const presets = /minor|dorian/.test(state.song.mode) ? PRESETS.minor : PRESETS.major;
     const st = STYLES[state.song.style];
     const progSel = h('select', { on: { change: (e) => upd({ progression: e.target.value || undefined }) } });
-    fillSelect(progSel, [['', `Style default (${st.progressions[b.type] || st.progressions.default})`], ...presets, ...(b.progression && !presets.some(([p]) => p === b.progression) ? [[b.progression, b.progression]] : [])], b.progression || '');
+    fillSelect(progSel, [['', `Style default (${st.progressions[b.type] || st.progressions.default})`], ...presets, ...(b.progression && !presets.some(([p]) => p === b.progression) ? [[b.progression, `${b.progression} · yours`]] : [])], b.progression || '');
+    const progText = h('input', { class: 'prog-text', value: b.progression || '', placeholder: 'or type chords: Imaj7-vi7-ii7-V7', title: CHORD_HELP, 'aria-label': 'Type your own chords', autocomplete: 'off', spellcheck: 'false',
+      on: { change: (e) => { const v = checkProgression(e.target.value); if (v !== null) upd({ progression: v || undefined }); } } });
     const layerSeg = h('div', { class: 'seg' }, ...Object.keys(LAYER_LABELS).map((k) => h('button', {
       class: 'chip', type: 'button', 'aria-pressed': String(!!L[k]), on: { click: () => updL({ [k]: !L[k] }) },
     }, LAYER_LABELS[k])));
     kids.push(
       field('Length', stepper(b.bars, 1, 32, 1, (v) => `${v} bars`, (v) => upd({ bars: v }))),
-      field('Chords', progSel),
+      field('Chords', progSel, progText),
       h('div', { class: 'dial wide' }, h('span', { class: 'dial-label' }, 'Layers'), layerSeg),
       field('Drums', seg(DRUM_LEVELS.map((d) => [d, d]), L.drums || 'none', (v) => updL({ drums: v }))),
       field('Filter sweep', seg([['none', 'none'], ['rise', 'open up'], ['fall', 'close down']], L.filter || 'none', (v) => updL({ filter: v === 'none' ? undefined : v }))),
@@ -539,7 +569,7 @@ function renderInspector() {
   }
   kids.push(h('div', { class: 'actions' },
     h('button', { class: 'btn', type: 'button', on: { click: () => soloBlock(b) } }, '▶ Play this block'),
-    b.type !== 'hit' && h('button', { class: 'btn', type: 'button', disabled: b.locked, on: { click: () => { Object.assign(b, autoBlock({ ...b, locked: false }, rng(randSeed()), state.song), { locked: false }); songChanged(); } } }, '✨ Surprise me'),
+    b.type !== 'hit' && h('button', { class: 'btn', type: 'button', disabled: b.locked, on: { click: () => { Object.assign(b, autoBlock({ ...b, locked: false }, rng(randSeed()), state.song, { rich: true }), { locked: false }); songChanged(); } } }, '✨ Surprise me'),
     h('button', { class: 'btn', type: 'button', 'aria-pressed': String(!!b.locked), on: { click: () => upd({ locked: !b.locked }) } }, b.locked ? 'Unlock' : 'Lock'),
     b.type !== 'hit' && h('button', { class: 'btn', type: 'button', 'aria-pressed': String(!!b.loop), on: { click: () => toggleBlockLoop(b) } }, b.loop ? '🔁 Looping' : '🔁 Loop'),
     h('button', { class: 'btn', type: 'button', on: { click: () => moveBlock(b.id, -1) } }, '←'),
@@ -833,6 +863,7 @@ $('#m-density').addEventListener('change', (e) => set({ density: Number(e.target
 $('#m-sync').addEventListener('input', (e) => { $('#m-sync-v').textContent = Math.round(e.target.value * 100) + '%'; });
 $('#m-sync').addEventListener('change', (e) => set({ syncopation: Number(e.target.value) }));
 $('#m-prog').addEventListener('change', (e) => set({ progression: e.target.value }));
+$('#m-prog-text').addEventListener('change', (e) => { const v = checkProgression(e.target.value); if (v !== null) set({ progression: v }); });
 $('#to-composer').addEventListener('click', () => {
   const m = state.melody;
   if (!state.song.blocks.length) Object.assign(state.song, { style: m.style, key: m.key, mode: m.mode, bpm: m.bpm });
@@ -847,15 +878,15 @@ $('#c-title').addEventListener('change', (e) => { state.song.title = e.target.va
 $('#c-key').addEventListener('change', (e) => { state.song.key = e.target.value; songChanged(); });
 $('#c-mode').addEventListener('change', (e) => { state.song.mode = e.target.value; songChanged(); });
 $('#c-bpm').addEventListener('change', (e) => { state.song.bpm = Math.min(200, Math.max(50, Number(e.target.value) || 100)); songChanged(); });
-$('#auto-song').addEventListener('click', () => { const tag = randomTag(); state.song = songFromTag(tag, { length: $('#auto-length').value, style: state.song.style, gen: 2 }); songChanged({ keepSelection: false, edited: false }); toast(`✨ A fresh song: ${showTag(tag)}`); });
-$('#auto-finish').addEventListener('click', () => { state.song = autoFill(state.song, { seed: randSeed(), length: $('#auto-length').value }); songChanged(); toast('✨ Finished the arrangement'); });
+$('#auto-song').addEventListener('click', () => { const tag = randomTag(); state.song = songFromTag(tag, { length: $('#auto-length').value, style: state.song.style, gen: 3 }); songChanged({ keepSelection: false, edited: false }); toast(`✨ A fresh song: ${showTag(tag)}`); });
+$('#auto-finish').addEventListener('click', () => { state.song = autoFill(state.song, { seed: randSeed(), length: $('#auto-length').value, rich: true }); songChanged(); toast('✨ Finished the arrangement'); });
 $('#auto-block').addEventListener('click', () => {
   const b = state.song.blocks.find((x) => x.id === state.selected);
   if (!b) return toast('Select a block first');
   if (b.locked) return toast('That block is locked');
-  Object.assign(b, autoBlock(b, rng(randSeed()), state.song)); songChanged();
+  Object.assign(b, autoBlock(b, rng(randSeed()), state.song, { rich: true })); songChanged();
 });
-$('#auto-all').addEventListener('click', () => { const r = rng(randSeed()); state.song.blocks = state.song.blocks.map((b) => autoBlock(b, r, state.song)); songChanged(); toast('✨ Re-rolled every unlocked block'); });
+$('#auto-all').addEventListener('click', () => { const r = rng(randSeed()); state.song.blocks = state.song.blocks.map((b) => autoBlock(b, r, state.song, { rich: true })); songChanged(); toast('✨ Re-rolled every unlocked block'); });
 $('#clear-song').addEventListener('click', () => { state.song = { ...emptySong(state.song.style), title: 'Untitled' }; songChanged({ keepSelection: false }); });
 
 const tlWrap = $('.timeline-wrap');

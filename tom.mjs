@@ -64,7 +64,7 @@ ${c.bold('Melody dials')} (tom melody)
   --no-chords --no-bass --drums <none|light|half|full>
 
 ${c.bold('Song / jingle')}
-  tom song --length <full|short|loop> [--gen 1]   (--gen 1: the original arranger)
+  tom song --length <full|short|loop> [--gen 1|2]   (older arrangers: 1 the original, 2 without richer chords and sounds)
   tom jingle --length 9.1 --hit 6.75 [--lead]
 
 ${c.bold('Examples')}
@@ -219,7 +219,7 @@ async function main() {
     }
     case 'song': {
       const o = common(a);
-      const bp = songFromTag(o.seed, { length: a.length && a.length !== true ? a.length : 'full', style: o.style, key: o.key, bpm: o.bpm, gen: a.gen === '1' ? 1 : 2 });
+      const bp = songFromTag(o.seed, { length: a.length && a.length !== true ? a.length : 'full', style: o.style, key: o.key, bpm: o.bpm, gen: ['1', '2'].includes(a.gen) ? Number(a.gen) : 3 });
       return writeOutputs(bp, a, `tom-song-${bp.origin.tag}.wav`, songHash(bp));
     }
     case 'jingle': {

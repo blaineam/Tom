@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0 — 2026-09-26
+
+- **No more church bells, for real.** 0.7.0 replaced the clangy FM bell (a 3.5:1 ratio that rings like a church bell) as the bells of five styles, but it was still the **counter-line in Lo-fi and Marimba verses** (so it played under most of their songs) and the bells in Hip-Hop and Reggae breaks. Now Lo-fi's counter-line is vibraphone, Marimba's a kalimba, Hip-Hop's bells a glass chime and Reggae's a steel pan. No style uses the old bell. Existing links keep every note; only those voices changed.
+- **A wider sound pool.** 13 new instruments (kalimba, music box, harp, nylon guitar, saxophone, clarinet, steel pan, harmonica, whistle, Wurlitzer, soft synth, synth brass, drawbar organ lead) join the voices the styles already had, 37 in all. Each style has a palette of sounds that suit it: Jazz can put the tune on sax, clarinet or piano; Lo-fi on Wurlitzer, nylon guitar, kalimba or sax; Reggae on steel pan or harmonica; Orchestral on flute, clarinet, harp or strings; and so on.
+  - **New songs pick their own sounds.** Every song Radio writes, and every **Build a whole song**, picks its melody, counter-line and bell sounds from its style's palette (each keeps the style's own voice about a third of the time), so a station doesn't sound the same song after song.
+  - **Choose them yourself.** The composer has **Melody**, **Counter-line** and **Bells** sound menus, and the Melody Machine a **Sound** dial. Links carry the choice (`&sound=kalimba`).
+  - MIDI export gives each part its sound's General MIDI program.
+- **Many more chords.** Progressions can now ask for sevenths, ninths and sixths (`Imaj7-vi7-ii7-V7`), suspensions and added ninths (`Vsus4`, `IVadd9`), chords borrowed from the parallel key (`bVII`, `bVI`, the minor `IVm`), and secondary dominants (`V/V`, `V7/ii`). `V7` is a dominant seventh in minor keys too.
+  - **Type your own** progression in the Melody Machine and in any composer block (it tells you what went wrong if it can't read one). The piano roll names the chords (Cmaj7, D7, Bb, Gsus4…).
+  - 36 presets (up from 13): smooth, jazz turnaround, lo-fi, royal road, shimmer, tearjerker, bittersweet, rock ♭VII, heroic ♭VI–♭VII, country II, gospel, Pachelbel, classic minor, flamenco, dorian, funk vamp…
+  - New songs draw from about 40 progressions plus each style's own favorites (ii–V turnarounds for Jazz, maj7/9 chains for Lo-fi, ♭VII rock changes, V/V in Country, i7–IV7 vamps in Funk), instead of 15.
+- New songs use a new arranger, **gen 3** (`&gen=3`): gen 2's varied forms, plus richer chords and the song's own sounds, and a little less ending sparkle. Links from earlier versions (no `gen`, or `gen=2`) keep every note (golden tests now pin gen 2 too). `tom song --gen 2` builds with the previous arranger.
+
 ## 0.9.0 — 2026-09-25
 
 Suggestions from Nigel Lundsten:

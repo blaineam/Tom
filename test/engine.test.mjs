@@ -9,7 +9,10 @@ import { createHash } from 'node:crypto';
 
 import { render, timeline, blockMelody } from '../lib/arrange.mjs';
 import { jingle, melodySong, autoSong, autoFill, makeBlock, emptySong, validate } from '../lib/blueprint.mjs';
-import { parseProgression, parseKey, noteName } from '../lib/theory.mjs';
+import { parseProgression, parseKey, noteName, chordOf, chord, chordName, SCALES } from '../lib/theory.mjs';
+import { SOUNDS, PALETTES, slotVoice } from '../lib/sounds.mjs';
+import { RICH_PROGRESSIONS, richProgressionsFor } from '../lib/blueprint.mjs';
+import { rng } from '../lib/rng.mjs';
 import { STYLES, STYLE_IDS } from '../lib/styles.mjs';
 import { encodeWav } from '../lib/wav.mjs';
 import { toMidi } from '../lib/midi.mjs';
@@ -178,6 +181,10 @@ const GOLDEN = {
   '#birthday-song': '10a5868e7753019b891c516e',
   '#road-trip&style=chip&busy=0.8': '517f59b4ee28cd38c30221b8',
   '#song:road-trip&length=short': 'f6954b28d8d4d5fed1e1fc3d',
+  // gen=2 (Radio and "Build a whole song" from 0.7.0 to 0.9.0), recorded at 0.9.0
+  '#song:quiet-owl-7&length=short&gen=2': '775235f19836ac13ecbc0498',
+  '#song:neon-tide-3&style=jazz&length=short&gen=2': 'ac6c2167eafcd01126da1170',
+  '#song:dusty-kite-9&style=funk&length=short&gen=2': 'b83ef7be81951417d4b08cd4',
 };
 test('existing share links still play exactly the same song', () => {
   const r6 = (x) => Math.round(x * 1e6) / 1e6;
@@ -360,4 +367,44 @@ test('radio: a mix limited to some styles plays only those, still without back-t
 test('the web app shows the same version as package.json', () => {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   assert.match(readFileSync(join(ROOT, 'web/app.js'), 'utf8'), new RegExp(`export const VERSION = '${pkg.version.replace(/\./g, '\\.')}'`));
+});
+
+test('chords: plain degrees are unchanged; colors, borrowed and secondary chords spell right', () => {
+  assert.deepEqual(parseProgression('1-5-6-4'), [1, 5, 6, 4].map((degree) => ({ degree, beats: 4 })));
+  assert.deepEqual(parseProgression('vi-IV-I-V').map((c) => c.degree), [6, 4, 1, 5]);
+  for (const d of [1, 2, 3, 4, 5, 6, 7]) for (const sev of [false, true]) assert.deepEqual(chordOf(60, SCALES.major, { degree: d }, sev), chord(60, SCALES.major, d, sev));
+  const C = (tok, S = SCALES.major, root = 60) => chordName(root, S, parseProgression(tok)[0], (m) => ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'][((m % 12) + 12) % 12]);
+  assert.equal(C('Imaj7'), 'Cmaj7'); assert.equal(C('ii7'), 'Dm7'); assert.equal(C('V7'), 'G7'); assert.equal(C('IVm'), 'Fm');
+  assert.equal(C('bVII'), 'Bb'); assert.equal(C('bVI'), 'Ab'); assert.equal(C('V/V'), 'D'); assert.equal(C('V7/ii'), 'A7');
+  assert.equal(C('Vsus4'), 'Gsus4'); assert.equal(C('IVadd9'), 'Fadd9'); assert.equal(C('vi9'), 'Am9'); assert.equal(C('viidim'), 'B°');
+  assert.equal(C('V7', SCALES.minor, 57), 'E7', 'V7 in a minor key is a dominant');
+  assert.throws(() => parseProgression('1-X-4'), /Bad chord/);
+  for (const p of [...RICH_PROGRESSIONS.major, ...RICH_PROGRESSIONS.minor, ...STYLE_IDS.flatMap((s) => richProgressionsFor(STYLES[s].mode, s))]) assert.doesNotThrow(() => parseProgression(p), p);
+});
+
+test('sounds: every voice renders, and new songs pick their own sounds and richer chords', () => {
+  for (const [id] of Object.entries(SOUNDS)) for (const slot of ['lead', 'counter', 'bells']) {
+    const sig = slotVoice(slot, id).voice(67, 0.4, rng('s'));
+    let peak = 0; for (const v of sig) { assert.ok(Number.isFinite(v), id); peak = Math.max(peak, Math.abs(v)); }
+    assert.ok(peak > 0.02 && peak < 1.5, `${id}/${slot}: peak ${peak}`);
+  }
+  for (const [style, p] of Object.entries(PALETTES)) {
+    assert.ok(STYLES[style], style);
+    for (const slot of ['lead', 'counter', 'bells']) for (const id of p[slot]) assert.ok(SOUNDS[id], `${style}/${slot}: ${id}`);
+  }
+  const songs = Array.from({ length: 12 }, (_, n) => radioTrack('lofi', 'sounds', n));
+  assert.ok(songs.every((s) => s.origin.gen === 3));
+  assert.ok(new Set(songs.map((s) => s.sounds?.lead ?? '')).size >= 4, 'melody sounds vary');
+  const progs = songs.flatMap((s) => s.blocks.map((b) => b.progression).filter(Boolean));
+  assert.ok(progs.some((p) => /maj7|7|9|sus|add|b[IV]|\//.test(p)), 'colored chords turn up');
+  const song = songs.find((s) => s.sounds?.lead);
+  const d = decodeShare(songHash(song)).song;
+  assert.deepEqual(d.sounds, song.sounds, 'the link rebuilds the same sounds');
+  const { events } = render({ ...song, blocks: song.blocks.filter((b) => b.type === 'chorus').slice(0, 1).map((b) => ({ ...b, bars: 2 })) });
+  assert.ok(events.some((e) => e.track === 'lead' && e.voice === song.sounds.lead));
+});
+
+test('no style plays the old clangy FM bell any more', () => {
+  const src = readFileSync(join(ROOT, 'lib/styles.mjs'), 'utf8') + readFileSync(join(ROOT, 'lib/arrange.mjs'), 'utf8');
+  assert.ok(!/I\.bell\(/.test(src));
 });

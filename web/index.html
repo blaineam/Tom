@@ -85,7 +85,9 @@
       <div class="dial wide"><span class="dial-label">Shape</span><div class="seg" id="m-contour"></div></div>
       <div class="dial"><span class="dial-label">Phrase form</span><div class="seg" id="m-form"></div></div>
       <div class="dial"><span class="dial-label">Register</span><div class="seg" id="m-octave"></div></div>
-      <div class="dial"><label class="dial-label" for="m-prog">Chords</label><select id="m-prog"></select></div>
+      <div class="dial"><label class="dial-label" for="m-prog">Chords</label><select id="m-prog"></select>
+        <input id="m-prog-text" class="prog-text" placeholder="or type chords: Imaj7-vi7-ii7-V7" aria-label="Type your own chords" autocomplete="off" spellcheck="false"></div>
+      <div class="dial"><span class="dial-label">Sound</span><div id="m-sound"></div></div>
       <div class="dial"><span class="dial-label">Backing</span><div class="seg" id="m-backing"></div></div>
       <div class="dial"><span class="dial-label">Drums</span><div class="seg" id="m-drums"></div></div>
     </section>
@@ -100,6 +102,7 @@
       <label class="mini">Mode <select id="c-mode"></select></label>
       <label class="mini">BPM <input id="c-bpm" type="number" min="50" max="200" class="num"></label>
       <span class="lcd-text" id="c-length"></span>
+      <div class="sounds" id="c-sounds" aria-label="Sounds"></div>
     </section>
 
     <section class="panel auto-bar" aria-label="Auto">
