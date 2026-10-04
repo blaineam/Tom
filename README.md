@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://tom.wemiller.com"><img src="web/gecko.svg" width="120" alt="Tom the gecko"></a>
+  <a href="https://wemiller.com/tools/tom/"><img src="web/gecko.svg" width="120" alt="Tom the gecko"></a>
 </p>
 
 <h1 align="center">Tom</h1>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://tom.wemiller.com"><strong>Open Tom</strong></a> &bull;
+  <a href="https://wemiller.com/tools/tom/app/"><strong>Open Tom</strong></a> &bull;
   <a href="#the-web-app">Web app</a> &bull;
   <a href="#radio">Radio</a> &bull;
   <a href="#the-cli">CLI</a> &bull;
@@ -24,7 +24,7 @@ Tom is named after the **tokay gecko**, one of the few lizards that sings (it's 
 
 ## The web app
 
-**[tom.wemiller.com](https://tom.wemiller.com)** runs entirely in your browser. Nothing is uploaded, and after your first visit it works **offline**: on iPhone or iPad, tap Share → **Add to Home Screen** and Tom opens like an app, with or without a connection.
+**[wemiller.com/tools/tom](https://wemiller.com/tools/tom/)** runs entirely in your browser. Nothing is uploaded, and after your first visit it works **offline**: on iPhone or iPad, tap Share → **Add to Home Screen** and Tom opens like an app, with or without a connection.
 
 ### Melody Machine
 
@@ -85,20 +85,20 @@ Pick a station, one per style plus **Mix**, which rotates through every style, a
 - **Pick what the Mix plays**: toggle styles on and off under the stations.
 - **Previous and next** on the lock screen, in Control Center and in CarPlay, not ±10 s skips. Previous goes back a song (or restarts one you're a few seconds into).
 - **Songs you've heard**: everything Radio plays is listed, with ☆ Saved for keepers. Play any song again, open it in the composer or copy its link. Your station, Mix styles and history are remembered on your device.
-- **Siri, Shortcuts and CarPlay**: `tom.wemiller.com/#radio:jazz&play` opens the Jazz station and starts it. Put that in a Shortcut's **Open URLs** action and "Hey Siri, Jazz Radio" opens it. iOS needs one tap before a web page can play sound, so the whole screen becomes a start button; after that it's in Now Playing, CarPlay included. (A web page can't be a CarPlay app of its own; that needs a native app.)
-- `tom.wemiller.com/#radio:jazz` opens the Jazz station; `#radio:mix&styles=jazz,funk` a Mix of just those.
+- **Siri, Shortcuts and CarPlay**: `wemiller.com/tools/tom/app/#radio:jazz&play` opens the Jazz station and starts it. Put that in a Shortcut's **Open URLs** action and "Hey Siri, Jazz Radio" opens it. iOS needs one tap before a web page can play sound, so the whole screen becomes a start button; after that it's in Now Playing, CarPlay included. (A web page can't be a CarPlay app of its own; that needs a native app.)
+- `wemiller.com/tools/tom/app/#radio:jazz` opens the Jazz station; `#radio:mix&styles=jazz,funk` a Mix of just those.
 
 ## Share links: a hashtag is a song
 
 The seed lives in the URL, so **the link is the song**:
 
 ```
-tom.wemiller.com/#sunset-drive                        a melody; the tag alone picks style, key, tempo and shape
-tom.wemiller.com/#sunset-drive&style=chip&busy=0.8    the same tag with a couple of dials turned
-tom.wemiller.com/#first-dance&style=jazz&key=Bb&bpm=132   any tag, in any style
-tom.wemiller.com/#song:road-trip&length=short         a whole auto-built song from a tag
-tom.wemiller.com/#song:road-trip&gen=3                the same tag through the newest arranger (varied forms, richer chords, its own sounds)
-tom.wemiller.com/#song=eyJ2ZXJzaW9uIjox…               an edited song, carried in full
+wemiller.com/tools/tom/app/#sunset-drive                        a melody; the tag alone picks style, key, tempo and shape
+wemiller.com/tools/tom/app/#sunset-drive&style=chip&busy=0.8    the same tag with a couple of dials turned
+wemiller.com/tools/tom/app/#first-dance&style=jazz&key=Bb&bpm=132   any tag, in any style
+wemiller.com/tools/tom/app/#song:road-trip&length=short         a whole auto-built song from a tag
+wemiller.com/tools/tom/app/#song:road-trip&gen=3                the same tag through the newest arranger (varied forms, richer chords, its own sounds)
+wemiller.com/tools/tom/app/#song=eyJ2ZXJzaW9uIjox…               an edited song, carried in full
 ```
 
 Type any word after the `#` and Tom plays that song, the same one for everyone, every time. The address bar updates as you work, so copying it always copies exactly what you hear. Links list only the dials that differ from the tag's own recipe, so they stay short. A link, once shared, keeps its song: bare tags choose among the original five styles forever, so adding styles never changes an existing link (the tests pin every note of a set of golden links). New styles are one `&style=` away. The die rolls memorable tags like `#mellow-gecko-42`.
@@ -119,7 +119,7 @@ tom melody --seed '#sunset-drive' --out hook.wav --midi       # the same melody 
 tom melody --style chip --density 0.8 --contour rise --form AAAB --bars 16
 tom song --seed road-trip --length short --out road-trip.m4a --blueprint
 tom jingle --style synthwave --length 9.1 --hit 6.75 --out bed.wav
-tom render 'https://tom.wemiller.com/#sunset-drive&busy=0.8'  # any share link
+tom render 'https://wemiller.com/tools/tom/app/#sunset-drive&busy=0.8'  # any share link
 tom render my-song.json                                       # a song saved from the composer
 tom radio --station funk --count 5 --format m4a                # the next five songs of a radio station
 tom compose                                                   # run the web app locally

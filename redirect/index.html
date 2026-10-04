@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tom has moved</title>
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="https://wemiller.com/tools/tom/">
+  <script>
+    // tom.wemiller.com moved to wemiller.com/tools/tom/. This page is served for every
+    // path on the old address (as index.html and 404.html) and forwards there, keeping
+    // the path, the query and the share-link hash (#sunset-drive, #radio:jazz&play…).
+    //
+    // Saved songs, Radio history and settings live in this origin's localStorage, which
+    // the new address can't read, so a returning visitor's `tom*` entries ride along in
+    // the URL fragment (never sent to a server): #tom-import=<base64url JSON>|<hash>.
+    // The app at the new address fills in only keys it doesn't already have, then
+    // removes the fragment before Tom reads the hash.
+    (function () {
+      var base = 'https://wemiller.com/tools/tom/';
+      var path = location.pathname.replace(/^\/+/, '').replace(/^index\.html$/, '');
+      var hash = location.hash.length > 1 ? location.hash.slice(1) : '';
+      var carry = {}, any = false;
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i);
+          if (key && key.indexOf('tom') === 0 && key !== 'tom:radio-log') { carry[key] = localStorage.getItem(key); any = true; }
+        }
+      } catch (e) { /* storage blocked: nothing to carry */ }
+      // A first-time visit to the bare address sees the Tom page; anything else opens the app.
+      var url = base + (any || path || hash || location.search ? 'app/' + path : '') + location.search;
+      if (any) {
+        var packed = btoa(unescape(encodeURIComponent(JSON.stringify(carry))))
+          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        url += '#tom-import=' + packed + (hash ? '|' + hash : '');
+      } else if (hash) {
+        url += '#' + hash;
+      }
+      location.replace(url);
+    })();
+  </script>
+  <meta http-equiv="refresh" content="1; url=https://wemiller.com/tools/tom/">
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 1.05rem/1.5 system-ui, -apple-system, sans-serif; background: #f6f7f9; color: #14161b; text-align: center; padding: 16px; box-sizing: border-box; }
+    a { color: #1f7a43; }
+    @media (prefers-color-scheme: dark) { body { background: #14161b; color: #eef0f5; } a { color: #9ff2b8; } }
+  </style>
+</head>
+<body>
+  <p>Tom has moved to <a href="https://wemiller.com/tools/tom/">wemiller.com/tools/tom</a>.</p>
+</body>
+</html>

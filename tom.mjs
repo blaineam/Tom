@@ -69,7 +69,7 @@ ${c.bold('Song / jingle')}
 
 ${c.bold('Examples')}
   tom melody --seed '#sunset-drive' --out hook.wav --midi hook.mid
-  tom render 'https://tom.wemiller.com/#sunset-drive&busy=0.8'
+  tom render 'https://wemiller.com/tools/tom/app/#sunset-drive&busy=0.8'
   tom melody --style chip --density 0.8 --contour rise --form AAAB
   tom song --style synthwave --seed 57 --out night-drive.m4a --blueprint night-drive.json
   tom jingle --style synthwave --length 9.1 --hit 6.75 --out bed.wav

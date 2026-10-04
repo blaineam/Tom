@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Tom has a new address: [wemiller.com/tools/tom](https://wemiller.com/tools/tom/).** The app is at `wemiller.com/tools/tom/app/`, next to a page about it. `tom.wemiller.com` now forwards every link there, share-link hashes and Siri/Shortcuts start links included, and brings your saved songs, Radio history and settings along on your first visit. The old offline copy retires itself. The CLI prints share links with the new address; old links still decode.
+
 ## 0.10.0 — 2026-09-26
 
 - **No more church bells, for real.** 0.7.0 replaced the clangy FM bell (a 3.5:1 ratio that rings like a church bell) as the bells of five styles, but it was still the **counter-line in Lo-fi and Marimba verses** (so it played under most of their songs) and the bells in Hip-Hop and Reggae breaks. Now Lo-fi's counter-line is vibraphone, Marimba's a kalimba, Hip-Hop's bells a glass chime and Reggae's a steel pan. No style uses the old bell. Existing links keep every note; only those voices changed.

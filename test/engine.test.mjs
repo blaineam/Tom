@@ -145,7 +145,7 @@ test('a #hashtag is a deterministic song', () => {
   assert.equal(tagOf('#42'), 42);
   assert.deepEqual(melodyFromTag('sunset-drive'), melodyFromTag('#Sunset Drive'));
   const a = render(melodySong({ ...melodyFromTag('sunset-drive'), ending: true }));
-  const d = decodeShare('https://tom.wemiller.com/#sunset-drive');
+  const d = decodeShare('https://wemiller.com/tools/tom/app/#sunset-drive');
   const b = render(melodySong({ ...d.params, ending: true }));
   assert.equal(hash(a.L), hash(b.L));
 });
@@ -314,7 +314,8 @@ test('radio: every track has a link that rebuilds the same song', () => {
     assert.equal(d.song.key, t.key); assert.equal(d.song.bpm, t.bpm); assert.equal(d.song.style, t.style);
   }
   assert.deepEqual(decodeShare('#radio:jazz'), { kind: 'radio', station: 'jazz' });
-  assert.deepEqual(decodeShare('https://tom.wemiller.com/#radio'), { kind: 'radio', station: null });
+  assert.deepEqual(decodeShare('https://tom.wemiller.com/#radio'), { kind: 'radio', station: null }); // old links still decode
+  assert.deepEqual(decodeShare('https://wemiller.com/tools/tom/app/#radio'), { kind: 'radio', station: null });
 });
 
 test('in-place reverb and echo are bit-identical to the copying versions', async () => {

@@ -9,6 +9,6 @@
   "files": ["tom.mjs", "lib/", "web/", "README.md", "LICENSE"],
   "keywords": ["music", "melody", "generative", "procedural-audio", "synth", "midi", "royalty-free", "cli", "web-audio"],
   "repository": { "type": "git", "url": "https://github.com/blaineam/Tom.git" },
-  "homepage": "https://tom.wemiller.com/",
+  "homepage": "https://wemiller.com/tools/tom/",
   "license": "MIT"
 }

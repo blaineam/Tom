@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy the tom.wemiller.com redirect to GitHub Pages
 
 on:
   push:
@@ -27,17 +27,19 @@ jobs:
           node-version: 22
       - name: Test
         run: npm test
-      - name: Assemble site (web/ at the root, the engine beside it in lib/)
+      # The app itself is served from wemiller.com/tools/tom/app/ (mirrored from web/ + lib/
+      # by the portfolio repo). tom.wemiller.com publishes only redirect/: a page that
+      # forwards every old path, query and share-link hash there, and a service worker that
+      # retires the old offline copy.
+      - name: Assemble the redirect site
         run: |
           mkdir _site
-          cp -R web/. _site/
-          cp -R lib _site/lib
+          cp -R redirect/. _site/
           touch _site/.nojekyll
-      - name: Stamp module URLs with this commit (a deploy's files always load together)
-        run: node scripts/stamp.mjs _site "${GITHUB_SHA::8}"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+          retention-days: 1
       - id: deploy
         uses: actions/deploy-pages@v4
