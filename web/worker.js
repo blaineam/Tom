@@ -3,14 +3,20 @@ import { render } from './lib/arrange.mjs';
 import { encodeWav } from './lib/wav.mjs';
 
 self.onmessage = (e) => {
-  const { id, bp, wav } = e.data;
+  const { id, bp, radio, wav } = e.data;
   try {
     const out = render(bp);
-    if (wav) {
-      // Radio: hand back a ready-to-play WAV plus the pitched notes for the display.
-      const bytes = encodeWav(out.L, out.R, out.sampleRate);
+    if (radio) {
+      // Radio: the pitched notes for the display, plus a ready-to-play WAV — or,
+      // where WAV won't play (Lockdown Mode), the samples, for the page to encode.
       const notes = out.events.filter((n) => n.midi != null).map((n) => ({ track: n.track, midi: n.midi, t: n.t, dur: n.dur }));
-      self.postMessage({ id, ok: true, wav: bytes, duration: out.duration, bpm: out.bpm, notes }, [bytes.buffer]);
+      const meta = { id, ok: true, duration: out.duration, bpm: out.bpm, notes };
+      if (wav) {
+        const bytes = encodeWav(out.L, out.R, out.sampleRate);
+        self.postMessage({ ...meta, wav: bytes }, [bytes.buffer]);
+      } else {
+        self.postMessage({ ...meta, L: out.L, R: out.R, sampleRate: out.sampleRate }, [out.L.buffer, out.R.buffer]);
+      }
       return;
     }
     self.postMessage({ id, ok: true, L: out.L, R: out.R, sampleRate: out.sampleRate, duration: out.duration, bpm: out.bpm, events: out.events }, [out.L.buffer, out.R.buffer]);

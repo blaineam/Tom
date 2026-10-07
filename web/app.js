@@ -10,6 +10,7 @@ import {
 import { blockMelody, timeline, resolve } from './lib/arrange.mjs';
 import { rng } from './lib/rng.mjs';
 import { encodeWav } from './lib/wav.mjs';
+import { webAudio, aacEncodable, encodeAac } from './aac.js';
 import { toMidi } from './lib/midi.mjs';
 import { tagOf, randomTag, melodyFromTag, melodyHash, songHash, songFromTag, decodeShare } from './lib/share.mjs';
 import { STATIONS, MIX, stationName } from './lib/radio.mjs';
@@ -88,6 +89,7 @@ const gain = () => (vol.muted ? 0 : vol.level ** 2); // squared, so the slider f
 const mediaVolume = (() => { try { const a = new Audio(); a.volume = 0.5; return a.volume === 0.5; } catch { return false; } })();
 function applyVolume() {
   if (master) master.gain.setTargetAtTime(gain(), ac.currentTime, 0.015);
+  if (el) el.volume = gain();
   radio.setVolume(gain());
   const v = $('#volume'), m = $('#mute'), radioView = state.view === 'radio' && !mediaVolume;
   v.value = vol.level;
@@ -132,6 +134,7 @@ async function startPlayback(bp, { loop = false, view = state.view, from = cue }
   radio.stop();
   const my = playToken;
   loading = true; setPlayButton(true);
+  if (!webAudio) return startElementPlayback(bp, { loop, view, from, my });
   ac ??= new AudioContext(); // created inside the tap, so Safari lets it start
   if (!master) { master = ac.createGain(); master.gain.value = gain(); master.connect(ac.destination); }
   const resumed = ac.state === 'suspended' ? ac.resume() : null;
@@ -149,9 +152,48 @@ async function startPlayback(bp, { loop = false, view = state.view, from = cue }
   schedTimer ||= setInterval(schedule, 40);
   requestAnimationFrame(tick);
 }
+// Without Web Audio (Safari in Lockdown Mode) the song is encoded to AAC and
+// played by one <audio> element. The scrub bar and block loops still work, as
+// plain jumps of the element's clock, without the crossfade. Its play() is
+// first called inside the tap, which lets the later play(), after rendering,
+// start without one.
+let el = null;
+const aac = { result: null, url: null, offset: 0 };
+async function startElementPlayback(bp, { loop, view, from, my }) {
+  if (!aacEncodable) { loading = false; setPlayButton(false); toast("This browser can't play sound here"); return; }
+  if (!el) { el = new Audio(); el.preload = 'auto'; el.setAttribute('playsinline', ''); el.volume = gain(); }
+  el.play().catch(() => { /* no source yet: this call only unlocks the element */ });
+  let r;
+  try {
+    r = await renderCached(renderable(bp));
+    if (aac.result !== r) {
+      setStatus('encoding…');
+      const { blob, offset } = await encodeAac(r.L, r.R, r.sampleRate);
+      setStatus('');
+      if (aac.url) URL.revokeObjectURL(aac.url);
+      Object.assign(aac, { result: r, url: URL.createObjectURL(blob), offset });
+    }
+  } catch (e) {
+    if (my === playToken) { setStatus(''); setPlayButton(false); toast(`Couldn't play: ${e.message || e}`); }
+    return;
+  } finally { if (my === playToken) loading = false; }
+  if (my !== playToken) return;
+  el.src = aac.url; el.loop = loop;
+  el.onended = () => { if (playing?.el === el) stopPlayback(); };
+  playing = { el, offset: aac.offset, duration: r.duration, loop, view, bp, bounds: loop ? null : blockBounds(bp, r.duration) };
+  const loops = view === 'compose' ? loopedBlocks() : [];
+  if (!from && loops.length) from = playing.bounds[loops[0]][0];
+  seekTo(from);
+  el.play().catch((e) => { if (playing?.el !== el) return; stopPlayback(); toast(e.name === 'NotAllowedError' ? 'Tap Play again to listen' : `Couldn't play: ${e.message}`); });
+  setPlayButton(true);
+  schedTimer ||= setInterval(schedule, 40);
+  requestAnimationFrame(tick);
+}
+
 function stopPlayback() {
   playToken++; loading = false;
-  if (playing) for (const seg of [playing.seg, playing.next]) if (seg) { seg.src.onended = null; try { seg.src.stop(); } catch { /* not started */ } }
+  if (playing?.el) { playing.el.onended = null; playing.el.pause(); }
+  else if (playing) for (const seg of [playing.seg, playing.next]) if (seg) { seg.src.onended = null; try { seg.src.stop(); } catch { /* not started */ } }
   playing = null; cue = 0;
   setPlayButton(state.view === 'radio' && radio.active);
   $('#playhead').hidden = true;
@@ -204,6 +246,7 @@ function current() {
 }
 function position() {
   if (!playing) return cue;
+  if (playing.el) return Math.min(Math.max(0, playing.el.currentTime - playing.offset), playing.duration);
   const s = current(), t = s ? s.songAt + Math.max(0, ac.currentTime - s.ctxAt) : 0;
   return playing.loop ? t % playing.duration : Math.min(t, playing.duration);
 }
@@ -218,6 +261,7 @@ function seekTo(t) {
     else if (state.view === 'compose') movePlayhead(t, state.song);
     return;
   }
+  if (playing.el) { playing.el.currentTime = t + playing.offset; return; }
   const p = playing, now = ac.currentTime;
   if (p.next) { fadeOut(p.next, now); p.next = null; }
   if (p.seg) fadeOut(p.seg, now);
@@ -227,6 +271,7 @@ function seekTo(t) {
 function schedule() {
   const p = playing;
   if (!p) { clearInterval(schedTimer); schedTimer = 0; return; }
+  if (p.el) return scheduleElement(p);
   if (!p.bounds || p.next || !p.seg) return;
   const t = position(), k = p.bounds.findLastIndex(([s]) => t >= s);
   if (k < 0) return;
@@ -235,6 +280,15 @@ function schedule() {
   const s = p.seg, when = Math.max(ac.currentTime, s.ctxAt + (end - s.songAt));
   fadeOut(s, when);
   p.next = voice(p.bounds[to][0], when, true);
+}
+/** The <audio> fallback's loop: at the end of a block whose next block isn't the following one, jump. */
+function scheduleElement(p) {
+  if (!p.bounds) return;
+  const t = position(), k = p.bounds.findLastIndex(([s]) => t >= s);
+  if (k < 0) return;
+  const to = following(k);
+  if (to === k + 1 || to < 0 || t < p.bounds[k][1] - 0.03) return;
+  p.el.currentTime = p.bounds[to][0] + p.offset;
 }
 function tick() {
   if (!playing) return;

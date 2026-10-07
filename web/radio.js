@@ -20,13 +20,18 @@
 import { radioTrack, trackTitle, stationName, MIX } from './lib/radio.mjs';
 import { STYLES } from './lib/styles.mjs';
 import { encodeWav } from './lib/wav.mjs';
+import { wavPlayable, encodeAac } from './aac.js';
 
 const AHEAD = 2;              // songs kept rendered beyond the one playing
 const RENDER_TIMEOUT = 150e3; // a full song renders in seconds; this means the worker is gone
 const RETRIES = 2;
 const BACK_KEPT = 1;          // previous songs kept rendered, for an instant Previous
 const RESTART_AFTER = 4;      // seconds into a song after which Previous restarts it
-const SILENCE = URL.createObjectURL(new Blob([encodeWav(new Float32Array(44100), new Float32Array(44100), 44100)], { type: 'audio/wav' }));
+// A second of silence to hold the audio session with. Where WAV won't play
+// (Lockdown Mode) it is AAC, which takes a moment to encode.
+let SILENCE = null;
+if (wavPlayable) SILENCE = URL.createObjectURL(new Blob([encodeWav(new Float32Array(44100), new Float32Array(44100), 44100)], { type: 'audio/wav' }));
+else encodeAac(new Float32Array(44100), new Float32Array(44100), 44100).then(({ blob }) => { SILENCE = URL.createObjectURL(blob); }, (e) => console.warn('Radio: no silence to hold with', e));
 const ICON = new URL('./icon-512.png', import.meta.url).href;
 const cancelled = (why) => Object.assign(new Error(why), { cancelled: true });
 
@@ -74,7 +79,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
       const timer = setTimeout(() => { if (pending.has(id)) resetWorker(new Error('The renderer stalled')); }, RENDER_TIMEOUT);
       pending.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
       radioLog('writing', bp.title);
-      worker.postMessage({ id, bp, wav: true });
+      worker.postMessage({ id, bp, radio: true, wav: wavPlayable });
     });
   }
 
@@ -95,7 +100,10 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
       try {
         const r = await renderWav(song);
         if (g !== gen) throw cancelled('stale');
-        return { n, song, title: trackTitle(song), url: URL.createObjectURL(new Blob([r.wav], { type: 'audio/wav' })), duration: r.duration, notes: r.notes };
+        let blob = r.wav && new Blob([r.wav], { type: 'audio/wav' }), offset = 0;
+        if (!blob) ({ blob, offset } = await encodeAac(r.L, r.R, r.sampleRate));
+        if (g !== gen) throw cancelled('stale');
+        return { n, song, title: trackTitle(song), url: URL.createObjectURL(blob), offset, duration: r.duration, notes: r.notes };
       } catch (e) {
         if (e.cancelled || g !== gen || attempt >= RETRIES) throw e;
         radioLog('retrying song', n + 1, e.message);
@@ -151,6 +159,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   /** Hold the audio session with silence until the next song is ready. */
   function holdWithSilence() {
     audio.loop = true;
+    if (!SILENCE) return radioLog('no silence to hold with');
     audio.src = SILENCE;
     radioLog('holding with silence');
     audio.play().catch((e) => radioLog('silence refused', e.name));
@@ -315,7 +324,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   }
   function stop() { if (s.status === 'playing' || s.status === 'tuning') pause(); }
   /** Jump within the song playing (the scrub bar). */
-  function seek(t) { if (s.current && audio.duration > 0) { audio.currentTime = Math.max(0, Math.min(t, audio.duration - 0.05)); positionState(); } }
+  function seek(t) { if (s.current && audio.duration > 0) { audio.currentTime = Math.max(0, Math.min(t + (s.current.offset || 0), audio.duration - 0.05)); positionState(); } }
   /** 0–1. iOS ignores this (a media element there always plays at the device volume). */
   function setVolume(v) { audio.volume = Math.max(0, Math.min(1, v)); }
 
@@ -324,7 +333,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     tune, pause, resume, skip, previous, stop, playSong, setStyles, seek, setVolume,
     get canGoBack() { return back.length > 0 || (!!s.current && audio.currentTime > RESTART_AFTER); },
     get active() { return s.status === 'playing' || s.status === 'tuning'; },
-    get position() { return s.current ? audio.currentTime || 0 : 0; },
+    get position() { return s.current ? Math.max(0, (audio.currentTime || 0) - (s.current.offset || 0)) : 0; },
     get duration() { return s.current?.duration || 0; },
   };
 }
