@@ -7,7 +7,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
-import { render, timeline, blockMelody } from '../lib/arrange.mjs';
+import { render, renderAsync, channelFx, timeline, blockMelody } from '../lib/arrange.mjs';
 import { jingle, melodySong, autoSong, autoFill, makeBlock, emptySong, validate } from '../lib/blueprint.mjs';
 import { parseProgression, parseKey, noteName, chordOf, chord, chordName, SCALES } from '../lib/theory.mjs';
 import { SOUNDS, PALETTES, slotVoice } from '../lib/sounds.mjs';
@@ -21,6 +21,21 @@ import { radioTrack, STATIONS, MIX } from '../lib/radio.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const hash = (a) => createHash('sha1').update(Buffer.from(a.buffer)).digest('hex');
+
+test('renderAsync (effects run apart, as on worker threads) is byte-identical to render', async () => {
+  const bp = autoSong({ style: 'lofi', seed: 11, length: 'short' }); // lofi: crackle as well
+  // Copy each job's buffer and resolve out of order, as a pool of threads would.
+  const run = (job) => new Promise((resolve) => setTimeout(() => resolve(channelFx({ ...job, x: job.x.slice() })), Math.random() * 5));
+  const a = render(bp), b = await renderAsync(bp, run);
+  assert.equal(hash(a.L), hash(b.L));
+  assert.equal(hash(a.R), hash(b.R));
+});
+
+test('a quick-start Radio track is short, and only the first one', () => {
+  const quick = radioTrack('jazz', 'q1', 0, { quickStart: true });
+  assert.ok(timeline(quick).duration <= 90, `${timeline(quick).duration}s`);
+  assert.equal(songHash(radioTrack('jazz', 'q1', 1, { quickStart: true })), songHash(radioTrack('jazz', 'q1', 1)));
+});
 
 test('same blueprint renders byte-identical audio', () => {
   const bp = melodySong({ style: 'pop', seed: 42 });

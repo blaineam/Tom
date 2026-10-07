@@ -20,7 +20,7 @@
 import { radioTrack, trackTitle, stationName, MIX } from './lib/radio.mjs';
 import { STYLES } from './lib/styles.mjs';
 import { encodeWav } from './lib/wav.mjs';
-import { wavPlayable, encodeAac } from './aac.js';
+import { wavPlayable, webAudio, encodeAac } from './aac.js';
 
 const AHEAD = 2;              // songs kept rendered beyond the one playing
 const RENDER_TIMEOUT = 150e3; // a full song renders in seconds; this means the worker is gone
@@ -79,7 +79,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
       const timer = setTimeout(() => { if (pending.has(id)) resetWorker(new Error('The renderer stalled')); }, RENDER_TIMEOUT);
       pending.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
       radioLog('writing', bp.title);
-      worker.postMessage({ id, bp, radio: true, wav: wavPlayable });
+      worker.postMessage({ id, bp, radio: true, wav: wavPlayable, parallel: !webAudio });
     });
   }
 
@@ -94,7 +94,8 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   let oneOff = 0;       // bumps for each song asked for by name (history, Previous)
   let userPaused = false; // only a pause the listener asked for stops the station
 
-  const prepare = (n, g) => renderTrack(radioTrack(s.station, s.seed, n, { styles: s.styles }), n, g);
+  // Without Web Audio this is almost surely Lockdown Mode, which also has no JIT: start with a short song.
+  const prepare = (n, g) => renderTrack(radioTrack(s.station, s.seed, n, { styles: s.styles, quickStart: !webAudio }), n, g);
   async function renderTrack(song, n, g) {
     for (let attempt = 0; ; attempt++) {
       try {

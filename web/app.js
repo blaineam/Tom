@@ -69,7 +69,7 @@ const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'modu
 let reqId = 0;
 const pending = new Map();
 worker.onmessage = (e) => { const p = pending.get(e.data.id); if (p) { pending.delete(e.data.id); e.data.ok ? p.resolve(e.data) : p.reject(new Error(e.data.error)); } };
-const renderInWorker = (bp) => new Promise((resolve, reject) => { const id = ++reqId; pending.set(id, { resolve, reject }); worker.postMessage({ id, bp }); });
+const renderInWorker = (bp) => new Promise((resolve, reject) => { const id = ++reqId; pending.set(id, { resolve, reject }); worker.postMessage({ id, bp, parallel: !webAudio }); });
 
 const cache = { key: null, result: null };
 async function renderCached(bp) {
