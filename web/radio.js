@@ -20,7 +20,7 @@
 import { radioTrack, trackTitle, stationName, MIX } from './lib/radio.mjs';
 import { STYLES } from './lib/styles.mjs';
 import { encodeWav } from './lib/wav.mjs';
-import { wavPlayable, webAudio, encodeAac } from './aac.js';
+import { wavPlayable, webAudio, encodeAac, elementVolume } from './aac.js';
 
 const AHEAD = 2;              // songs kept rendered beyond the one playing
 const RENDER_TIMEOUT = 150e3; // a full song renders in seconds; this means the worker is gone
@@ -101,10 +101,11 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
       try {
         const r = await renderWav(song);
         if (g !== gen) throw cancelled('stale');
-        let blob = r.wav && new Blob([r.wav], { type: 'audio/wav' }), offset = 0;
-        if (!blob) ({ blob, offset } = await encodeAac(r.L, r.R, r.sampleRate));
-        if (g !== gen) throw cancelled('stale');
-        return { n, song, title: trackTitle(song), url: URL.createObjectURL(blob), offset, duration: r.duration, notes: r.notes };
+        // `raw` is the song at full level: a WAV, or (Lockdown Mode) its samples, left then right.
+        const t = { n, song, title: trackTitle(song), raw: r.wav ? new Blob([r.wav], { type: 'audio/wav' }) : new Blob([r.L, r.R]), wav: !!r.wav, rate: r.sampleRate, url: null, offset: 0, baked: null, duration: r.duration, notes: r.notes };
+        do await bake(t); while (t.raw && t.baked !== level); // the volume may move while this one is written
+        if (g !== gen) { drop(t); throw cancelled('stale'); }
+        return t;
       } catch (e) {
         if (e.cancelled || g !== gen || attempt >= RETRIES) throw e;
         radioLog('retrying song', n + 1, e.message);
@@ -112,12 +113,58 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
       }
     }
   }
+  // ─── volume, where the element has none (iPhone, iPad) ───
+  // The level is written into each song's audio. Moving the slider rewrites the
+  // songs that are ready, and the one playing carries on from where it was.
+  let level = 1, bakeTimer = 0, baking = Promise.resolve(), swapping = false;
+  /** Let go of a song's audio. */
+  function drop(t) { if (t.url) URL.revokeObjectURL(t.url); t.url = null; t.raw = null; }
+  /** (Re)write a song's audio at the current level. Returns the address it had before, for the caller to revoke. */
+  async function bake(t) {
+    const g = level, old = t.url;
+    let blob = t.raw, offset = 0;
+    if (!t.wav || g !== 1) {
+      const buf = await t.raw.arrayBuffer();
+      if (t.wav) {
+        const pcm = new Int16Array(buf, 44, (buf.byteLength - 44) >> 1);
+        for (let i = 0; i < pcm.length; i++) pcm[i] = Math.round(pcm[i] * g);
+        blob = new Blob([buf], { type: 'audio/wav' });
+      } else {
+        const n = buf.byteLength >> 3, L = new Float32Array(buf, 0, n), R = new Float32Array(buf, n * 4, n);
+        if (g !== 1) for (let i = 0; i < n; i++) { L[i] *= g; R[i] *= g; }
+        ({ blob, offset } = await encodeAac(L, R, t.rate));
+      }
+    }
+    if (!t.raw) return null; // let go of meanwhile
+    t.url = URL.createObjectURL(blob); t.offset = offset; t.baked = g;
+    return old;
+  }
+  function rebake() {
+    baking = baking.then(async () => {
+      for (const t of [s.current, ...ready, ...back]) {
+        if (!t || !t.raw || !t.url || t.baked === level) continue;
+        try {
+          const old = await bake(t);
+          if (!old) continue;
+          if (t === s.current) {
+            const at = audio.currentTime, go = !audio.paused;
+            swapping = true;
+            audio.src = t.url;
+            audio.addEventListener('loadedmetadata', () => { swapping = false; if (s.current === t) audio.currentTime = at; }, { once: true });
+            if (go) audio.play().catch((e) => { swapping = false; radioLog('volume: play refused', e.name); });
+          }
+          URL.revokeObjectURL(old);
+        } catch (e) { radioLog('volume: could not rewrite a song', e.message || String(e)); }
+      }
+    });
+  }
+
   function fill() {
     if (rendering || ready.length >= AHEAD || !s.station) return;
     const g = gen, n = nextN++;
     rendering = true;
     prepare(n, g).then((t) => {
-      if (g !== gen) return URL.revokeObjectURL(t.url);
+      if (g !== gen) return drop(t);
       rendering = false;
       ready.push(t); s.upcoming = ready[0];
       if (waiting) play(ready.shift()); else onChange();
@@ -134,7 +181,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     if (!t) return;
     back.push(t);
     if (back.length > 50) back.shift();
-    for (const x of back.slice(0, -BACK_KEPT)) if (x.url) { URL.revokeObjectURL(x.url); x.url = null; }
+    for (const x of back.slice(0, -BACK_KEPT)) drop(x);
   }
   function blocked(e) {
     s.status = 'paused';
@@ -195,7 +242,7 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     if (!userPaused && !audio.loop && s.current) advance();
   });
   audio.addEventListener('pause', () => {
-    if (userPaused || audio.loop || audio.ended || nearEnd()) return;
+    if (userPaused || swapping || audio.loop || audio.ended || nearEnd()) return;
     radioLog('paused by the system', s.current?.title ?? '', Math.round(audio.currentTime));
     if (s.status === 'playing') { s.status = 'paused'; onChange(); } // an interruption (a call, Siri)
   });
@@ -247,11 +294,11 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   }
 
   function clearQueue({ keepCurrent = false } = {}) {
-    for (const t of ready) URL.revokeObjectURL(t.url);
+    for (const t of ready) drop(t);
     ready = []; rendering = false; waiting = false; s.upcoming = null;
     if (keepCurrent) return;
-    for (const t of back) if (t.url) URL.revokeObjectURL(t.url);
-    if (s.current) URL.revokeObjectURL(s.current.url);
+    for (const t of back) drop(t);
+    if (s.current) drop(s.current);
     back = [];
   }
 
@@ -303,11 +350,11 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
     if (!s.station) Object.assign(s, { station: song.style, seed: Math.random().toString(36).slice(2, 8), styles: null });
     unlock();
     const g = gen, token = ++oneOff;
-    if (s.current) { if (retireCurrent) retire(s.current); else URL.revokeObjectURL(s.current.url); s.current = null; }
+    if (s.current) { if (retireCurrent) retire(s.current); else drop(s.current); s.current = null; }
     s.status = 'tuning'; s.error = null; waiting = false;
     holdWithSilence(); updateSession(); onChange();
     renderTrack(song, n, g).then((t) => {
-      if (g !== gen || token !== oneOff) return URL.revokeObjectURL(t.url);
+      if (g !== gen || token !== oneOff) return drop(t);
       play(t, { retireOld: false });
     }, (e) => { if (g === gen && token === oneOff && !e.cancelled) fail(e); });
   }
@@ -326,8 +373,15 @@ export function createRadio({ onChange = () => {}, onTrack = () => {} } = {}) {
   function stop() { if (s.status === 'playing' || s.status === 'tuning') pause(); }
   /** Jump within the song playing (the scrub bar). */
   function seek(t) { if (s.current && audio.duration > 0) { audio.currentTime = Math.max(0, Math.min(t + (s.current.offset || 0), audio.duration - 0.05)); positionState(); } }
-  /** 0–1. iOS ignores this (a media element there always plays at the device volume). */
-  function setVolume(v) { audio.volume = Math.max(0, Math.min(1, v)); }
+  /** 0–1. Where the element has no volume of its own (iPhone, iPad), the songs are rewritten at this level a moment after it settles. */
+  function setVolume(v) {
+    v = Math.max(0, Math.min(1, v));
+    audio.muted = v === 0;
+    if (elementVolume) { audio.volume = v; return; }
+    if (!v || v === level) return; // muted: the songs keep the level they have
+    level = v;
+    clearTimeout(bakeTimer); bakeTimer = setTimeout(rebake, 250);
+  }
 
   return {
     state: s,

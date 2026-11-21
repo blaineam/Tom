@@ -8,6 +8,16 @@
 export const wavPlayable = new Audio().canPlayType('audio/wav') !== '';
 /** Whether the page can play rendered audio through Web Audio. */
 export const webAudio = typeof AudioContext === 'function';
+/**
+ * Whether an <audio> element's .volume does anything. Not on iPhone or iPad: a media
+ * element there plays at the device volume whatever .volume says (and newer versions
+ * read back the value you set, so asking the element is not enough). There the level
+ * is written into the audio itself.
+ */
+export const elementVolume = (() => {
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return false;
+  try { const a = new Audio(); a.volume = 0.5; return a.volume === 0.5; } catch { return false; }
+})();
 /** Whether this browser can encode AAC for the <audio> fallback. */
 export const aacEncodable = typeof AudioEncoder === 'function' && typeof AudioData === 'function';
 

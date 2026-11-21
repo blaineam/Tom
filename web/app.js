@@ -10,7 +10,7 @@ import {
 import { blockMelody, timeline, resolve } from './lib/arrange.mjs';
 import { rng } from './lib/rng.mjs';
 import { encodeWav } from './lib/wav.mjs';
-import { webAudio, aacEncodable, encodeAac } from './aac.js';
+import { webAudio, aacEncodable, encodeAac, elementVolume } from './aac.js';
 import { toMidi } from './lib/midi.mjs';
 import { tagOf, randomTag, melodyFromTag, melodyHash, songHash, songFromTag, decodeShare } from './lib/share.mjs';
 import { STATIONS, MIX, stationName } from './lib/radio.mjs';
@@ -85,20 +85,18 @@ async function renderCached(bp) {
 // ─── volume: one level for every mode ───
 const vol = { level: store.get('volume', 0.8), muted: store.get('muted', false) };
 const gain = () => (vol.muted ? 0 : vol.level ** 2); // squared, so the slider feels even to the ear
-// iOS plays media elements (Radio) at the device volume only, and ignores .volume.
-const mediaVolume = (() => { try { const a = new Audio(); a.volume = 0.5; return a.volume === 0.5; } catch { return false; } })();
+// iOS plays media elements (Radio, and everything in Lockdown Mode) at the device volume
+// and ignores .volume, so there the level is written into the audio instead (see aac.js).
 function applyVolume() {
   if (master) master.gain.setTargetAtTime(gain(), ac.currentTime, 0.015);
-  if (el) el.volume = gain();
+  if (el) { el.muted = !gain(); if (elementVolume) el.volume = gain(); else rebakeElement(); }
   radio.setVolume(gain());
-  const v = $('#volume'), m = $('#mute'), radioView = state.view === 'radio' && !mediaVolume;
+  const v = $('#volume'), m = $('#mute');
   v.value = vol.level;
-  v.disabled = radioView;
-  v.title = radioView ? 'On this device, Radio plays at the volume you set with its buttons' : `Volume ${Math.round(vol.level * 100)}%`;
+  v.title = `Volume ${Math.round(vol.level * 100)}%`;
   m.textContent = vol.muted || !vol.level ? '🔇' : vol.level < 0.5 ? '🔉' : '🔊';
   m.setAttribute('aria-pressed', String(vol.muted));
   m.setAttribute('aria-label', vol.muted ? 'Unmute' : 'Mute');
-  m.disabled = radioView;
 }
 $('#volume').addEventListener('input', (e) => { vol.level = Number(e.target.value); vol.muted = false; store.set('volume', vol.level); store.set('muted', false); applyVolume(); });
 $('#mute').addEventListener('click', () => { vol.muted = !vol.muted; if (!vol.muted && !vol.level) vol.level = 0.5; store.set('muted', vol.muted); store.set('volume', vol.level); applyVolume(); });
@@ -158,21 +156,44 @@ async function startPlayback(bp, { loop = false, view = state.view, from = cue }
 // first called inside the tap, which lets the later play(), after rendering,
 // start without one.
 let el = null;
-const aac = { result: null, url: null, offset: 0 };
+const aac = { result: null, url: null, offset: 0, gain: 1 };
+/** The level written into the encoded song: 1 where the element has a volume of its own. Muting keeps the level it has. */
+const bakedGain = () => (elementVolume ? 1 : gain() || aac.gain);
+async function encodeForElement(r) {
+  const g = bakedGain();
+  if (aac.result === r && aac.gain === g) return;
+  setStatus('encoding…');
+  try {
+    const at = (x) => (g === 1 ? x : x.map((v) => v * g));
+    const { blob, offset } = await encodeAac(at(r.L), at(r.R), r.sampleRate);
+    const old = aac.url;
+    Object.assign(aac, { result: r, url: URL.createObjectURL(blob), offset, gain: g });
+    if (old) setTimeout(() => URL.revokeObjectURL(old), 5000); // the element may still be playing it
+  } finally { setStatus(''); }
+}
+/** The slider moved: a moment after it settles, encode the song again at that level and carry on from the same place. */
+let rebakeTimer = 0;
+function rebakeElement() {
+  clearTimeout(rebakeTimer);
+  rebakeTimer = setTimeout(async () => {
+    const p = playing;
+    if (!p?.el || aac.gain === bakedGain()) return;
+    try { await encodeForElement(p.r); } catch { return; }
+    if (playing !== p || aac.result !== p.r) return;
+    const at = el.currentTime;
+    el.src = aac.url;
+    el.addEventListener('loadedmetadata', () => { if (playing === p) el.currentTime = at; }, { once: true });
+    el.play().catch(() => { /* the next Play starts it */ });
+  }, 250);
+}
 async function startElementPlayback(bp, { loop, view, from, my }) {
   if (!aacEncodable) { loading = false; setPlayButton(false); toast("This browser can't play sound here"); return; }
-  if (!el) { el = new Audio(); el.preload = 'auto'; el.setAttribute('playsinline', ''); el.volume = gain(); }
+  if (!el) { el = new Audio(); el.preload = 'auto'; el.setAttribute('playsinline', ''); el.muted = !gain(); if (elementVolume) el.volume = gain(); }
   el.play().catch(() => { /* no source yet: this call only unlocks the element */ });
   let r;
   try {
     r = await renderCached(renderable(bp));
-    if (aac.result !== r) {
-      setStatus('encoding…');
-      const { blob, offset } = await encodeAac(r.L, r.R, r.sampleRate);
-      setStatus('');
-      if (aac.url) URL.revokeObjectURL(aac.url);
-      Object.assign(aac, { result: r, url: URL.createObjectURL(blob), offset });
-    }
+    await encodeForElement(r);
   } catch (e) {
     if (my === playToken) { setStatus(''); setPlayButton(false); toast(`Couldn't play: ${e.message || e}`); }
     return;
@@ -180,7 +201,7 @@ async function startElementPlayback(bp, { loop, view, from, my }) {
   if (my !== playToken) return;
   el.src = aac.url; el.loop = loop;
   el.onended = () => { if (playing?.el === el) stopPlayback(); };
-  playing = { el, offset: aac.offset, duration: r.duration, loop, view, bp, bounds: loop ? null : blockBounds(bp, r.duration) };
+  playing = { el, r, offset: aac.offset, duration: r.duration, loop, view, bp, bounds: loop ? null : blockBounds(bp, r.duration) };
   const loops = view === 'compose' ? loopedBlocks() : [];
   if (!from && loops.length) from = playing.bounds[loops[0]][0];
   seekTo(from);
